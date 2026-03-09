@@ -236,18 +236,7 @@ export function useMediaPipe(videoRef, sessionId = null) {
   const lastProcessTimeRef = useRef(0);
   const screenBoundsRef = useRef(null);
 
-  // Load calibration data from sessionStorage
-  useEffect(() => {
-    if (!sessionId) return;
-    try {
-      const stored = sessionStorage.getItem(`calibration_${sessionId}`);
-      if (stored) {
-        screenBoundsRef.current = JSON.parse(stored);
-      }
-    } catch {
-      // No calibration data — will use fallback
-    }
-  }, [sessionId]);
+  // Eye contact detection uses fallback mode (hardcoded tolerances with head-pose compensation)
 
   const processFrame = useCallback((timestamp) => {
     const video = videoRef?.current;

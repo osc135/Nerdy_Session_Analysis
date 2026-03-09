@@ -2,13 +2,23 @@ import { useRef, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useMediaPipe } from '../hooks/useMediaPipe';
+import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
 import MetricsSidebar from './MetricsSidebar';
 import NudgePanel from './NudgePanel';
 
 function TutorView() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { connectionState, localStream, remoteStream, disconnect } = useWebRTC(sessionId, 'tutor');
+  const { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect } = useWebRTC(sessionId, 'tutor');
+
+  const [muted, setMuted] = useState(false);
+
+  const toggleMute = () => {
+    if (localStream) {
+      localStream.getAudioTracks().forEach(t => { t.enabled = muted; });
+    }
+    setMuted(!muted);
+  };
 
   const handleEndSession = () => {
     disconnect();
@@ -18,8 +28,27 @@ function TutorView() {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
-  // Eye contact tracking via MediaPipe (with calibration data)
+  // Eye contact tracking via MediaPipe
   const { gazeScore, isReady: mediaPipeReady } = useMediaPipe(localVideoRef, sessionId);
+
+  // Audio analysis for local mic
+  const { isSpeaking, talkTimePercent, audioEnergy, getCumulativeMs } = useAudioAnalysis(localStream);
+
+  // Send local metrics over data channel at 1Hz
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const audio = getCumulativeMs();
+      sendMetrics({
+        gazeScore,
+        isSpeaking,
+        talkTimePercent,
+        audioEnergy,
+        speakingMs: audio.speakingMs,
+        totalMs: audio.totalMs,
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [gazeScore, isSpeaking, talkTimePercent, audioEnergy, getCumulativeMs, sendMetrics]);
 
   // Session timer
   const [elapsed, setElapsed] = useState(0);
@@ -34,10 +63,22 @@ function TutorView() {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
+  // Compute talk time balance from both sides
+  const localAudio = getCumulativeMs();
+  const remoteSpeakingMs = remoteMetrics?.speakingMs || 0;
+  const totalSpeakingMs = localAudio.speakingMs + remoteSpeakingMs;
+  const tutorTalkPercent = totalSpeakingMs > 0
+    ? Math.round((localAudio.speakingMs / totalSpeakingMs) * 100)
+    : 0;
+  const studentTalkPercent = totalSpeakingMs > 0
+    ? 100 - tutorTalkPercent
+    : 0;
+
   const metrics = {
     eyeContact: gazeScore,
-    talkTime: 35,   // TODO: wire to useAudioAnalysis
-    energy: 61,     // TODO: wire to energy score
+    tutorTalkTime: tutorTalkPercent,
+    studentTalkTime: studentTalkPercent,
+    energy: Math.round(audioEnergy * 100),
   };
 
   // Dummy nudges for layout testing
@@ -71,6 +112,12 @@ function TutorView() {
           }}>
             {connectionState}
           </span>
+          <button
+            style={muted ? { ...styles.muteBtn, ...styles.muteBtnActive } : styles.muteBtn}
+            onClick={toggleMute}
+          >
+            {muted ? 'Unmute' : 'Mute'}
+          </button>
           <button style={styles.endBtn} onClick={handleEndSession}>End Session</button>
         </div>
 
@@ -144,6 +191,21 @@ const styles = {
     marginLeft: 'auto',
     fontSize: '0.8rem',
     fontWeight: 600,
+  },
+  muteBtn: {
+    background: '#21262d',
+    color: '#c9d1d9',
+    border: '1px solid #30363d',
+    borderRadius: '6px',
+    padding: '0.4rem 1rem',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  muteBtnActive: {
+    background: '#f8514933',
+    color: '#f85149',
+    borderColor: '#f85149',
   },
   endBtn: {
     background: '#da3633',

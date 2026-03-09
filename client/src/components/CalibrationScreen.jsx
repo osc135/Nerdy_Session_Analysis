@@ -109,6 +109,7 @@ function CalibrationScreen() {
     if (!video || !stream) return;
 
     video.srcObject = stream;
+    video.play().catch(() => {}); // ensure playback starts even if autoPlay is ignored
 
     // Poll readyState since offscreen videos may not fire events reliably
     const check = setInterval(() => {
@@ -475,10 +476,11 @@ const styles = {
   },
   offscreenVideo: {
     position: 'fixed',
-    top: '-9999px',
-    left: '-9999px',
-    width: '640px',
-    height: '480px',
+    top: 0,
+    left: 0,
+    width: '1px',
+    height: '1px',
+    opacity: 0,
     pointerEvents: 'none',
   },
   dot: {

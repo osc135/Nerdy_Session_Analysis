@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
-const SILENCE_THRESHOLD = 0.02;
+const SILENCE_THRESHOLD = 0.008;
 const CHECK_INTERVAL = 100; // ms
 
 export function useAudioAnalysis(stream) {
@@ -39,7 +39,7 @@ export function useAudioAnalysis(stream) {
 
       const speaking = rms > SILENCE_THRESHOLD;
       setIsSpeaking(speaking);
-      setAudioEnergy(Math.min(rms * 10, 1)); // normalize 0-1
+      setAudioEnergy(Math.min(rms * 20, 1)); // normalize 0-1, amplified for sensitivity
 
       totalMsRef.current += CHECK_INTERVAL;
       if (speaking) {
@@ -59,5 +59,11 @@ export function useAudioAnalysis(stream) {
     };
   }, [stream]);
 
-  return { isSpeaking, talkTimePercent, audioEnergy };
+  // Expose cumulative ms for data channel sharing
+  const getCumulativeMs = useCallback(() => ({
+    speakingMs: speakingMsRef.current,
+    totalMs: totalMsRef.current,
+  }), []);
+
+  return { isSpeaking, talkTimePercent, audioEnergy, getCumulativeMs };
 }

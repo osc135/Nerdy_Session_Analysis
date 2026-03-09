@@ -2,11 +2,21 @@ import { useRef, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useMediaPipe } from '../hooks/useMediaPipe';
+import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
 
 function StudentView() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { connectionState, localStream, remoteStream, disconnect } = useWebRTC(sessionId, 'student');
+  const { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect } = useWebRTC(sessionId, 'student');
+
+  const [muted, setMuted] = useState(false);
+
+  const toggleMute = () => {
+    if (localStream) {
+      localStream.getAudioTracks().forEach(t => { t.enabled = muted; });
+    }
+    setMuted(!muted);
+  };
 
   // When tutor ends the session, redirect student to home
   useEffect(() => {
@@ -19,8 +29,27 @@ function StudentView() {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
-  // Eye contact tracking via MediaPipe (with calibration data)
+  // Eye contact tracking via MediaPipe
   const { gazeScore, isReady: mediaPipeReady } = useMediaPipe(localVideoRef, sessionId);
+
+  // Audio analysis for local mic
+  const { isSpeaking, talkTimePercent, audioEnergy, getCumulativeMs } = useAudioAnalysis(localStream);
+
+  // Send local metrics over data channel at 1Hz
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const audio = getCumulativeMs();
+      sendMetrics({
+        gazeScore,
+        isSpeaking,
+        talkTimePercent,
+        audioEnergy,
+        speakingMs: audio.speakingMs,
+        totalMs: audio.totalMs,
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [gazeScore, isSpeaking, talkTimePercent, audioEnergy, getCumulativeMs, sendMetrics]);
 
   // Session timer
   const [elapsed, setElapsed] = useState(0);
@@ -60,7 +89,12 @@ function StudentView() {
         }}>
           {connectionState}
         </span>
-        <span style={styles.endNote}>Tutor controls session</span>
+        <button
+          style={muted ? { ...styles.muteBtn, ...styles.muteBtnActive } : styles.muteBtn}
+          onClick={toggleMute}
+        >
+          {muted ? 'Unmute' : 'Mute'}
+        </button>
       </div>
 
       {/* Videos */}
@@ -75,23 +109,40 @@ function StudentView() {
         </div>
       </div>
 
-      {/* Eye contact indicator */}
+      {/* Engagement indicators */}
       <div style={styles.engagementBar}>
-        <span style={styles.engagementLabel}>Your eye contact</span>
-        <div style={styles.scoreRow}>
-          <div style={styles.progressTrack}>
-            <div style={{
-              ...styles.progressFill,
-              width: `${gazeScore}%`,
-              background: gazeScore >= 60 ? '#3fb950' : gazeScore >= 40 ? '#f0883e' : '#f85149',
-            }} />
+        <div style={styles.metricRow}>
+          <span style={styles.engagementLabel}>Your eye contact</span>
+          <div style={styles.scoreRow}>
+            <div style={styles.progressTrack}>
+              <div style={{
+                ...styles.progressFill,
+                width: `${gazeScore}%`,
+                background: gazeScore >= 60 ? '#3fb950' : gazeScore >= 40 ? '#f0883e' : '#f85149',
+              }} />
+            </div>
+            <span style={{
+              ...styles.engagementStatus,
+              color: gazeScore >= 60 ? '#3fb950' : gazeScore >= 40 ? '#f0883e' : '#f85149',
+            }}>
+              {mediaPipeReady ? `${gazeScore}%` : 'Loading...'}
+            </span>
           </div>
-          <span style={{
-            ...styles.engagementStatus,
-            color: gazeScore >= 60 ? '#3fb950' : gazeScore >= 40 ? '#f0883e' : '#f85149',
-          }}>
-            {mediaPipeReady ? `${gazeScore}%` : 'Loading...'}
-          </span>
+        </div>
+        <div style={styles.metricRow}>
+          <span style={styles.engagementLabel}>Your talk time</span>
+          <div style={styles.scoreRow}>
+            <div style={styles.progressTrack}>
+              <div style={{
+                ...styles.progressFill,
+                width: `${talkTimePercent}%`,
+                background: '#58a6ff',
+              }} />
+            </div>
+            <span style={{ ...styles.engagementStatus, color: '#58a6ff' }}>
+              {talkTimePercent}%
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -132,10 +183,20 @@ const styles = {
     fontSize: '0.8rem',
     fontWeight: 600,
   },
-  endNote: {
-    color: '#8b949e',
-    fontSize: '0.8rem',
-    fontStyle: 'italic',
+  muteBtn: {
+    background: '#21262d',
+    color: '#c9d1d9',
+    border: '1px solid #30363d',
+    borderRadius: '6px',
+    padding: '0.4rem 1rem',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  muteBtnActive: {
+    background: '#f8514933',
+    color: '#f85149',
+    borderColor: '#f85149',
   },
   videos: {
     flex: 1,
@@ -176,14 +237,19 @@ const styles = {
   },
   engagementBar: {
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
+    gap: '0.6rem',
     marginTop: '1rem',
     padding: '0.75rem 1rem',
     background: '#161b22',
     borderRadius: '8px',
     border: '1px solid #30363d',
     flexShrink: 0,
+  },
+  metricRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   engagementLabel: {
     color: '#8b949e',

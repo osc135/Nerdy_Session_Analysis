@@ -12,8 +12,33 @@ function MetricBar({ label, value, color }) {
   );
 }
 
+function TalkTimeBalance({ tutorPercent, studentPercent }) {
+  return (
+    <div style={styles.balanceContainer}>
+      <div style={styles.balanceLabels}>
+        <span style={styles.balanceLabel}>Tutor {tutorPercent}%</span>
+        <span style={styles.balanceLabel}>Student {studentPercent}%</span>
+      </div>
+      <div style={styles.balanceTrack}>
+        <div style={{
+          ...styles.balanceFill,
+          width: `${tutorPercent}%`,
+          background: '#f0883e',
+          borderRadius: studentPercent === 0 ? '3px' : '3px 0 0 3px',
+        }} />
+        <div style={{
+          ...styles.balanceFill,
+          width: `${studentPercent}%`,
+          background: '#58a6ff',
+          borderRadius: tutorPercent === 0 ? '3px' : '0 3px 3px 0',
+        }} />
+      </div>
+    </div>
+  );
+}
+
 function MetricsSidebar({ metrics }) {
-  const { eyeContact = 0, talkTime = 0, energy = 0 } = metrics || {};
+  const { eyeContact = 0, tutorTalkTime = 0, studentTalkTime = 0, energy = 0 } = metrics || {};
 
   return (
     <div style={styles.sidebar}>
@@ -26,8 +51,8 @@ function MetricsSidebar({ metrics }) {
       </div>
 
       <div style={styles.section}>
-        <span style={styles.sectionLabel}>Conversation</span>
-        <MetricBar label="Student Talk Time" value={talkTime} color="#58a6ff" />
+        <span style={styles.sectionLabel}>Talk Time Balance</span>
+        <TalkTimeBalance tutorPercent={tutorTalkTime} studentPercent={studentTalkTime} />
       </div>
 
       <div style={styles.sessionInfo}>
@@ -96,6 +121,30 @@ const styles = {
   barFill: {
     height: '100%',
     borderRadius: '3px',
+    transition: 'width 0.5s ease',
+  },
+  balanceContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  balanceLabels: {
+    display: 'flex',
+    justifyContent: 'space-between',
+  },
+  balanceLabel: {
+    fontSize: '0.8rem',
+    color: '#8b949e',
+  },
+  balanceTrack: {
+    display: 'flex',
+    height: '8px',
+    background: '#21262d',
+    borderRadius: '3px',
+    overflow: 'hidden',
+  },
+  balanceFill: {
+    height: '100%',
     transition: 'width 0.5s ease',
   },
   sessionInfo: {

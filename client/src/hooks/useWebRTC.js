@@ -49,7 +49,11 @@ export function useWebRTC(sessionId, role) {
       // 1. Get camera and mic
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
-        audio: true,
+        audio: {
+          noiseSuppression: true,
+          echoCancellation: true,
+          autoGainControl: true,
+        },
       });
       if (cancelled) {
         stream.getTracks().forEach((t) => t.stop());
