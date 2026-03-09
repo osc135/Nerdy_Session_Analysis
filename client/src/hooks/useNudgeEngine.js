@@ -38,6 +38,15 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
   const [nudges, setNudges] = useState([]);
   const lastFiredRef = useRef({}); // { [type]: timestamp }
 
+  // Store latest values in refs so the interval always reads current data
+  const remoteMetricsRef = useRef(remoteMetrics);
+  const localMetricsRef = useRef(localMetrics);
+  const elapsedRef = useRef(elapsed);
+
+  useEffect(() => { remoteMetricsRef.current = remoteMetrics; }, [remoteMetrics]);
+  useEffect(() => { localMetricsRef.current = localMetrics; }, [localMetrics]);
+  useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
+
   // Track student silence duration
   const studentSilenceStartRef = useRef(null);
   const studentSilenceMsRef = useRef(0);
@@ -60,15 +69,19 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
   }, []);
 
   useEffect(() => {
-    // Don't run until both peers are connected
-    if (connectionState !== 'connected' || !remoteMetrics) return;
+    // Don't start until both peers are connected
+    if (connectionState !== 'connected') return;
 
     const interval = setInterval(() => {
+      const remote = remoteMetricsRef.current;
+      const local = localMetricsRef.current;
+      if (!remote) return;
+
       const now = Date.now();
-      const studentSpeaking = remoteMetrics.isSpeaking;
-      const tutorSpeaking = localMetrics.isSpeaking;
-      const studentGaze = remoteMetrics.gazeScore ?? 0;
-      const studentEnergy = Math.round((remoteMetrics.energy ?? 0) * 100);
+      const studentSpeaking = remote.isSpeaking;
+      const tutorSpeaking = local.isSpeaking;
+      const studentGaze = remote.gazeScore ?? 0;
+      const studentEnergy = Math.round((remote.energy ?? 0) * 100);
 
       // --- Student silence tracking ---
       if (studentSpeaking) {
@@ -107,25 +120,23 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
       // --- Interruption detection ---
       const bothSpeaking = tutorSpeaking && studentSpeaking;
       if (bothSpeaking && !bothSpeakingRef.current) {
-        // New interruption event (rising edge)
         interruptionTimesRef.current.push(now);
       }
       bothSpeakingRef.current = bothSpeaking;
-      // Count interruptions in last 2 minutes
       interruptionTimesRef.current = interruptionTimesRef.current.filter(
         t => now - t <= 120_000
       );
       const recentInterruptions = interruptionTimesRef.current.length;
 
       // --- Compute talk time balance ---
-      const localAudio = localMetrics.getCumulativeMs();
-      const remoteSpeakingMs = remoteMetrics.speakingMs || 0;
+      const localAudio = local.getCumulativeMs();
+      const remoteSpeakingMs = remote.speakingMs || 0;
       const totalSpeakingMs = localAudio.speakingMs + remoteSpeakingMs;
       const tutorTalkPercent = totalSpeakingMs > 0
         ? Math.round((localAudio.speakingMs / totalSpeakingMs) * 100)
         : 0;
 
-      const sessionMs = elapsed * 1000;
+      const sessionMs = elapsedRef.current * 1000;
 
       // --- Check all rules ---
       const context = {
@@ -145,7 +156,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
             lastFiredRef.current[rule.type] = now;
             setNudges(prev => [...prev, {
               message: rule.message,
-              timestamp: formatTime(elapsed),
+              timestamp: formatTime(elapsedRef.current),
               type: rule.type,
             }]);
           }
@@ -154,7 +165,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
     }, CHECK_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [connectionState, remoteMetrics, localMetrics, elapsed, formatTime]);
+  }, [connectionState, formatTime]);
 
   return nudges;
 }
