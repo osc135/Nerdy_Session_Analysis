@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
+import { useMediaPipe } from '../hooks/useMediaPipe';
 import MetricsSidebar from './MetricsSidebar';
 import NudgePanel from './NudgePanel';
 
@@ -17,6 +18,9 @@ function TutorView() {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
+  // Eye contact tracking via MediaPipe (with calibration data)
+  const { gazeScore, isReady: mediaPipeReady } = useMediaPipe(localVideoRef, sessionId);
+
   // Session timer
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -30,11 +34,10 @@ function TutorView() {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
-  // Dummy metrics for layout testing
-  const dummyMetrics = {
-    eyeContact: 72,
-    talkTime: 35,
-    energy: 61,
+  const metrics = {
+    eyeContact: gazeScore,
+    talkTime: 35,   // TODO: wire to useAudioAnalysis
+    energy: 61,     // TODO: wire to energy score
   };
 
   // Dummy nudges for layout testing
@@ -95,7 +98,7 @@ function TutorView() {
       </div>
 
       {/* Sidebar */}
-      <MetricsSidebar metrics={dummyMetrics} />
+      <MetricsSidebar metrics={metrics} />
 
       {/* Nudge toasts */}
       <NudgePanel nudges={dummyNudges} />

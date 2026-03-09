@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
+import { useMediaPipe } from '../hooks/useMediaPipe';
 
 function StudentView() {
   const { sessionId } = useParams();
@@ -17,6 +18,9 @@ function StudentView() {
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+
+  // Eye contact tracking via MediaPipe (with calibration data)
+  const { gazeScore, isReady: mediaPipeReady } = useMediaPipe(localVideoRef, sessionId);
 
   // Session timer
   const [elapsed, setElapsed] = useState(0);
@@ -71,10 +75,24 @@ function StudentView() {
         </div>
       </div>
 
-      {/* Simple engagement indicator */}
+      {/* Eye contact indicator */}
       <div style={styles.engagementBar}>
-        <span style={styles.engagementLabel}>Your engagement</span>
-        <span style={styles.engagementStatus}>Looking good!</span>
+        <span style={styles.engagementLabel}>Your eye contact</span>
+        <div style={styles.scoreRow}>
+          <div style={styles.progressTrack}>
+            <div style={{
+              ...styles.progressFill,
+              width: `${gazeScore}%`,
+              background: gazeScore >= 60 ? '#3fb950' : gazeScore >= 40 ? '#f0883e' : '#f85149',
+            }} />
+          </div>
+          <span style={{
+            ...styles.engagementStatus,
+            color: gazeScore >= 60 ? '#3fb950' : gazeScore >= 40 ? '#f0883e' : '#f85149',
+          }}>
+            {mediaPipeReady ? `${gazeScore}%` : 'Loading...'}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -175,6 +193,27 @@ const styles = {
     color: '#3fb950',
     fontSize: '0.85rem',
     fontWeight: 600,
+    minWidth: '48px',
+    textAlign: 'right',
+  },
+  scoreRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    flex: 1,
+    marginLeft: '1rem',
+  },
+  progressTrack: {
+    flex: 1,
+    height: '8px',
+    background: '#21262d',
+    borderRadius: '4px',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: '4px',
+    transition: 'width 0.5s ease, background 0.5s ease',
   },
 };
 

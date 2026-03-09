@@ -8,7 +8,7 @@ function ConsentScreen() {
   const handleJoin = (role) => {
     if (!agreed) return;
     const sessionId = crypto.randomUUID().slice(0, 8);
-    navigate(`/${role}/${sessionId}`);
+    navigate(`/calibration/${role}/${sessionId}`);
   };
 
   return (
