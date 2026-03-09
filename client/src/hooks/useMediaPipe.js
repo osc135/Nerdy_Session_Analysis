@@ -251,26 +251,36 @@ export function useMediaPipe(videoRef, sessionId = null) {
     try {
       const results = faceLandmarker.detectForVideo(video, timestamp);
 
+      const now = Date.now();
+      let frameData;
+
       if (results.faceLandmarks && results.faceLandmarks.length > 0) {
         const landmarks = results.faceLandmarks[0];
         const gazeResult = computeEyeContact(landmarks, screenBoundsRef.current);
-        const now = Date.now();
 
-        const frameData = {
+        frameData = {
           timestamp: now,
           eyeContact: gazeResult.eyeContact,
           gazeVector: gazeResult.gazeVector,
           headPose: gazeResult.headPose,
         };
-
-        sessionHistoryRef.current.push(frameData);
-        frameBufferRef.current.push(frameData);
-        frameBufferRef.current = trimBuffer(frameBufferRef.current, ROLLING_WINDOW_MS);
-
-        // Live score: use only the last ~1 second of frames for instant feedback
-        const recentFrames = trimBuffer(frameBufferRef.current, LIVE_WINDOW_MS, now);
-        setGazeScore(calculateGazeScore(recentFrames));
+      } else {
+        // No face detected — count as not making eye contact
+        frameData = {
+          timestamp: now,
+          eyeContact: false,
+          gazeVector: { x: 0, y: 0 },
+          headPose: { yaw: 0, pitch: 0 },
+        };
       }
+
+      sessionHistoryRef.current.push(frameData);
+      frameBufferRef.current.push(frameData);
+      frameBufferRef.current = trimBuffer(frameBufferRef.current, ROLLING_WINDOW_MS);
+
+      // Live score: use only the last ~1 second of frames for instant feedback
+      const recentFrames = trimBuffer(frameBufferRef.current, LIVE_WINDOW_MS, now);
+      setGazeScore(calculateGazeScore(recentFrames));
     } catch (err) {
       // MediaPipe can throw on bad frames — skip silently
     }

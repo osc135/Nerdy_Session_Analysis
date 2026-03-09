@@ -1,7 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+// Preload MediaPipe assets while user reads consent screen
+function usePreloadMediaPipe() {
+  useEffect(() => {
+    const urls = [
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm/vision_bundle.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm/vision_bundle_mjs.js',
+      'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+    ];
+    urls.forEach(url => {
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = url;
+      document.head.appendChild(link);
+    });
+  }, []);
+}
+
 function ConsentScreen() {
+  usePreloadMediaPipe();
   const [agreed, setAgreed] = useState(false);
   const navigate = useNavigate();
 

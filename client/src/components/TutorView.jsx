@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
+import { useNudgeEngine } from '../hooks/useNudgeEngine';
 import MetricsSidebar from './MetricsSidebar';
 import NudgePanel from './NudgePanel';
 
@@ -32,7 +33,7 @@ function TutorView() {
   const { gazeScore, isReady: mediaPipeReady } = useMediaPipe(localVideoRef, sessionId);
 
   // Audio analysis for local mic
-  const { isSpeaking, talkTimePercent, audioEnergy, getCumulativeMs } = useAudioAnalysis(localStream);
+  const { isSpeaking, talkTimePercent, volume, energy, getCumulativeMs } = useAudioAnalysis(localStream);
 
   // Send local metrics over data channel at 1Hz
   useEffect(() => {
@@ -42,13 +43,13 @@ function TutorView() {
         gazeScore,
         isSpeaking,
         talkTimePercent,
-        audioEnergy,
+        volume, energy,
         speakingMs: audio.speakingMs,
         totalMs: audio.totalMs,
       });
-    }, 1000);
+    }, 500);
     return () => clearInterval(interval);
-  }, [gazeScore, isSpeaking, talkTimePercent, audioEnergy, getCumulativeMs, sendMetrics]);
+  }, [gazeScore, isSpeaking, talkTimePercent, volume, energy, getCumulativeMs, sendMetrics]);
 
   // Session timer
   const [elapsed, setElapsed] = useState(0);
@@ -75,16 +76,19 @@ function TutorView() {
     : 0;
 
   const metrics = {
-    eyeContact: gazeScore,
+    eyeContact: remoteMetrics?.gazeScore ?? 0,
     tutorTalkTime: tutorTalkPercent,
     studentTalkTime: studentTalkPercent,
-    energy: Math.round(audioEnergy * 100),
+    energy: Math.round((remoteMetrics?.energy ?? 0) * 100),
   };
 
-  // Dummy nudges for layout testing
-  const dummyNudges = [
-    { message: 'Try asking the student an open-ended question to check understanding.', timestamp: '2:15' },
-  ];
+  // Nudge engine — monitors metrics and fires coaching suggestions
+  const nudges = useNudgeEngine({
+    localMetrics: { isSpeaking, getCumulativeMs },
+    remoteMetrics,
+    connectionState,
+    elapsed,
+  });
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -148,7 +152,7 @@ function TutorView() {
       <MetricsSidebar metrics={metrics} />
 
       {/* Nudge toasts */}
-      <NudgePanel nudges={dummyNudges} />
+      <NudgePanel nudges={nudges} />
     </div>
   );
 }

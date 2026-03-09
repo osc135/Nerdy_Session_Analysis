@@ -7,7 +7,7 @@ import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
 function StudentView() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect } = useWebRTC(sessionId, 'student');
+  const { connectionState, localStream, remoteStream, sendMetrics, disconnect } = useWebRTC(sessionId, 'student');
 
   const [muted, setMuted] = useState(false);
 
@@ -29,13 +29,13 @@ function StudentView() {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
-  // Eye contact tracking via MediaPipe
-  const { gazeScore, isReady: mediaPipeReady } = useMediaPipe(localVideoRef, sessionId);
+  // Eye contact tracking via MediaPipe (still needed — sends to tutor)
+  const { gazeScore } = useMediaPipe(localVideoRef, sessionId);
 
-  // Audio analysis for local mic
-  const { isSpeaking, talkTimePercent, audioEnergy, getCumulativeMs } = useAudioAnalysis(localStream);
+  // Audio analysis for local mic (still needed — sends to tutor)
+  const { isSpeaking, talkTimePercent, volume, energy, getCumulativeMs } = useAudioAnalysis(localStream);
 
-  // Send local metrics over data channel at 1Hz
+  // Send local metrics over data channel so tutor can see them
   useEffect(() => {
     const interval = setInterval(() => {
       const audio = getCumulativeMs();
@@ -43,13 +43,14 @@ function StudentView() {
         gazeScore,
         isSpeaking,
         talkTimePercent,
-        audioEnergy,
+        volume,
+        energy,
         speakingMs: audio.speakingMs,
         totalMs: audio.totalMs,
       });
-    }, 1000);
+    }, 500);
     return () => clearInterval(interval);
-  }, [gazeScore, isSpeaking, talkTimePercent, audioEnergy, getCumulativeMs, sendMetrics]);
+  }, [gazeScore, isSpeaking, talkTimePercent, volume, energy, getCumulativeMs, sendMetrics]);
 
   // Session timer
   const [elapsed, setElapsed] = useState(0);
@@ -106,43 +107,6 @@ function StudentView() {
         <div style={styles.localVideoBox}>
           <video ref={localVideoRef} autoPlay muted playsInline style={styles.video} />
           <span style={styles.label}>You</span>
-        </div>
-      </div>
-
-      {/* Engagement indicators */}
-      <div style={styles.engagementBar}>
-        <div style={styles.metricRow}>
-          <span style={styles.engagementLabel}>Your eye contact</span>
-          <div style={styles.scoreRow}>
-            <div style={styles.progressTrack}>
-              <div style={{
-                ...styles.progressFill,
-                width: `${gazeScore}%`,
-                background: gazeScore >= 60 ? '#3fb950' : gazeScore >= 40 ? '#f0883e' : '#f85149',
-              }} />
-            </div>
-            <span style={{
-              ...styles.engagementStatus,
-              color: gazeScore >= 60 ? '#3fb950' : gazeScore >= 40 ? '#f0883e' : '#f85149',
-            }}>
-              {mediaPipeReady ? `${gazeScore}%` : 'Loading...'}
-            </span>
-          </div>
-        </div>
-        <div style={styles.metricRow}>
-          <span style={styles.engagementLabel}>Your talk time</span>
-          <div style={styles.scoreRow}>
-            <div style={styles.progressTrack}>
-              <div style={{
-                ...styles.progressFill,
-                width: `${talkTimePercent}%`,
-                background: '#58a6ff',
-              }} />
-            </div>
-            <span style={{ ...styles.engagementStatus, color: '#58a6ff' }}>
-              {talkTimePercent}%
-            </span>
-          </div>
         </div>
       </div>
     </div>
@@ -234,52 +198,6 @@ const styles = {
     padding: '2px 8px',
     borderRadius: '4px',
     fontSize: '0.8rem',
-  },
-  engagementBar: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.6rem',
-    marginTop: '1rem',
-    padding: '0.75rem 1rem',
-    background: '#161b22',
-    borderRadius: '8px',
-    border: '1px solid #30363d',
-    flexShrink: 0,
-  },
-  metricRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  engagementLabel: {
-    color: '#8b949e',
-    fontSize: '0.85rem',
-  },
-  engagementStatus: {
-    color: '#3fb950',
-    fontSize: '0.85rem',
-    fontWeight: 600,
-    minWidth: '48px',
-    textAlign: 'right',
-  },
-  scoreRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    flex: 1,
-    marginLeft: '1rem',
-  },
-  progressTrack: {
-    flex: 1,
-    height: '8px',
-    background: '#21262d',
-    borderRadius: '4px',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: '4px',
-    transition: 'width 0.5s ease, background 0.5s ease',
   },
 };
 
