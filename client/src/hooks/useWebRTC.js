@@ -25,6 +25,21 @@ export function useWebRTC(sessionId, role) {
     }
   }, []);
 
+  // End the session: notify the other peer, then tear everything down
+  const disconnect = useCallback(() => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'session_ending' }));
+    }
+    dataChannelRef.current?.close();
+    pcRef.current?.close();
+    wsRef.current?.close();
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    setConnectionState('disconnected');
+    setLocalStream(null);
+    setRemoteStream(null);
+  }, []);
+
   useEffect(() => {
     if (!sessionId || !role) return;
 
@@ -147,8 +162,9 @@ export function useWebRTC(sessionId, role) {
             break;
           }
 
-          case 'peer_left': {
-            setConnectionState('disconnected');
+          case 'peer_left':
+          case 'session_ending': {
+            setConnectionState('ended');
             break;
           }
         }
@@ -174,5 +190,5 @@ export function useWebRTC(sessionId, role) {
     };
   }, [sessionId, role]);
 
-  return { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics };
+  return { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect };
 }

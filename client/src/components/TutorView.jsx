@@ -1,12 +1,18 @@
 import { useRef, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
 import MetricsSidebar from './MetricsSidebar';
 import NudgePanel from './NudgePanel';
 
 function TutorView() {
   const { sessionId } = useParams();
-  const { connectionState, localStream, remoteStream } = useWebRTC(sessionId, 'tutor');
+  const navigate = useNavigate();
+  const { connectionState, localStream, remoteStream, disconnect } = useWebRTC(sessionId, 'tutor');
+
+  const handleEndSession = () => {
+    disconnect();
+    navigate('/');
+  };
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -62,7 +68,7 @@ function TutorView() {
           }}>
             {connectionState}
           </span>
-          <button style={styles.endBtn}>End Session</button>
+          <button style={styles.endBtn} onClick={handleEndSession}>End Session</button>
         </div>
 
         {/* Videos */}

@@ -1,10 +1,19 @@
 import { useRef, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
 
 function StudentView() {
   const { sessionId } = useParams();
-  const { connectionState, localStream, remoteStream } = useWebRTC(sessionId, 'student');
+  const navigate = useNavigate();
+  const { connectionState, localStream, remoteStream, disconnect } = useWebRTC(sessionId, 'student');
+
+  // When tutor ends the session, redirect student to home
+  useEffect(() => {
+    if (connectionState === 'ended') {
+      disconnect();
+      navigate('/');
+    }
+  }, [connectionState, disconnect, navigate]);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -47,7 +56,7 @@ function StudentView() {
         }}>
           {connectionState}
         </span>
-        <button style={styles.endBtn}>End Session</button>
+        <span style={styles.endNote}>Tutor controls session</span>
       </div>
 
       {/* Videos */}
@@ -105,15 +114,10 @@ const styles = {
     fontSize: '0.8rem',
     fontWeight: 600,
   },
-  endBtn: {
-    background: '#da3633',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    padding: '0.4rem 1rem',
-    fontSize: '0.85rem',
-    fontWeight: 600,
-    cursor: 'pointer',
+  endNote: {
+    color: '#8b949e',
+    fontSize: '0.8rem',
+    fontStyle: 'italic',
   },
   videos: {
     flex: 1,
