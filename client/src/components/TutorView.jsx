@@ -4,6 +4,7 @@ import { useWebRTC } from '../hooks/useWebRTC';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
 import { useNudgeEngine } from '../hooks/useNudgeEngine';
+import { MetricsHistory } from '../utils/metricsHistory';
 import MetricsSidebar from './MetricsSidebar';
 import NudgePanel from './NudgePanel';
 
@@ -13,6 +14,8 @@ function TutorView() {
   const { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect } = useWebRTC(sessionId, 'tutor');
 
   const [muted, setMuted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const historyRef = useRef(new MetricsHistory());
 
   const toggleMute = () => {
     if (localStream) {
@@ -21,9 +24,26 @@ function TutorView() {
     setMuted(!muted);
   };
 
-  const handleEndSession = () => {
+  const handleEndSession = async () => {
+    setSaving(true);
+    // Capture final snapshot before tearing down
+    const audio = getCumulativeMs();
+    historyRef.current.addSnapshot(
+      { gazeScore, isSpeaking, volume, energy, speakingMs: audio.speakingMs, totalMs: audio.totalMs },
+      remoteMetrics || {},
+    );
+    const data = historyRef.current.getHistory();
     disconnect();
-    navigate('/');
+    try {
+      await fetch(`/api/sessions/${sessionId}/tutor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch (err) {
+      console.error('Failed to save session data:', err);
+    }
+    navigate(`/report/${sessionId}`);
   };
 
   const localVideoRef = useRef(null);
@@ -35,21 +55,36 @@ function TutorView() {
   // Audio analysis for local mic
   const { isSpeaking, talkTimePercent, volume, energy, getCumulativeMs } = useAudioAnalysis(localStream);
 
-  // Send local metrics over data channel at 1Hz
+  // Start history recording when connected
+  useEffect(() => {
+    if (connectionState === 'connected') {
+      historyRef.current.start();
+    }
+  }, [connectionState]);
+
+  // Send local metrics over data channel at 500ms
+  // Record snapshots for report at 2s (every 4th tick)
+  const sendTickRef = useRef(0);
   useEffect(() => {
     const interval = setInterval(() => {
       const audio = getCumulativeMs();
-      sendMetrics({
+      const localData = {
         gazeScore,
         isSpeaking,
         talkTimePercent,
         volume, energy,
         speakingMs: audio.speakingMs,
         totalMs: audio.totalMs,
-      });
+      };
+      sendMetrics(localData);
+
+      sendTickRef.current++;
+      if (sendTickRef.current % 4 === 0 && connectionState === 'connected') {
+        historyRef.current.addSnapshot(localData, remoteMetrics || {});
+      }
     }, 500);
     return () => clearInterval(interval);
-  }, [gazeScore, isSpeaking, talkTimePercent, volume, energy, getCumulativeMs, sendMetrics]);
+  }, [gazeScore, isSpeaking, talkTimePercent, volume, energy, getCumulativeMs, sendMetrics, connectionState, remoteMetrics]);
 
   // Session timer
   const [elapsed, setElapsed] = useState(0);
@@ -89,6 +124,17 @@ function TutorView() {
     connectionState,
     elapsed,
   });
+
+  // Record nudges into history as they fire
+  const prevNudgeCountRef = useRef(0);
+  useEffect(() => {
+    if (nudges.length > prevNudgeCountRef.current) {
+      for (let i = prevNudgeCountRef.current; i < nudges.length; i++) {
+        historyRef.current.addNudge(nudges[i]);
+      }
+      prevNudgeCountRef.current = nudges.length;
+    }
+  }, [nudges]);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {

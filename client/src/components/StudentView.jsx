@@ -3,13 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
+import { MetricsHistory } from '../utils/metricsHistory';
 
 function StudentView() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { connectionState, localStream, remoteStream, sendMetrics, disconnect } = useWebRTC(sessionId, 'student');
+  const { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect } = useWebRTC(sessionId, 'student');
 
   const [muted, setMuted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const historyRef = useRef(new MetricsHistory());
 
   const toggleMute = () => {
     if (localStream) {
@@ -18,13 +21,21 @@ function StudentView() {
     setMuted(!muted);
   };
 
-  // When tutor ends the session, redirect student to home
+  // When tutor ends the session, save data and redirect to report
   useEffect(() => {
-    if (connectionState === 'ended') {
+    if (connectionState === 'ended' && !saving) {
+      setSaving(true);
+      const data = historyRef.current.getHistory();
       disconnect();
-      navigate('/');
+      fetch(`/api/sessions/${sessionId}/student`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+        .catch(err => console.error('Failed to save session data:', err))
+        .finally(() => navigate(`/report/${sessionId}`));
     }
-  }, [connectionState, disconnect, navigate]);
+  }, [connectionState, saving, disconnect, navigate, sessionId]);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -35,11 +46,20 @@ function StudentView() {
   // Audio analysis for local mic (still needed — sends to tutor)
   const { isSpeaking, talkTimePercent, volume, energy, getCumulativeMs } = useAudioAnalysis(localStream);
 
+  // Start history recording when connected
+  useEffect(() => {
+    if (connectionState === 'connected') {
+      historyRef.current.start();
+    }
+  }, [connectionState]);
+
   // Send local metrics over data channel so tutor can see them
+  // Record snapshots for report at 2s (every 4th tick)
+  const sendTickRef = useRef(0);
   useEffect(() => {
     const interval = setInterval(() => {
       const audio = getCumulativeMs();
-      sendMetrics({
+      const localData = {
         gazeScore,
         isSpeaking,
         talkTimePercent,
@@ -47,10 +67,16 @@ function StudentView() {
         energy,
         speakingMs: audio.speakingMs,
         totalMs: audio.totalMs,
-      });
+      };
+      sendMetrics(localData);
+
+      sendTickRef.current++;
+      if (sendTickRef.current % 4 === 0 && connectionState === 'connected') {
+        historyRef.current.addSnapshot(localData, remoteMetrics || {});
+      }
     }, 500);
     return () => clearInterval(interval);
-  }, [gazeScore, isSpeaking, talkTimePercent, volume, energy, getCumulativeMs, sendMetrics]);
+  }, [gazeScore, isSpeaking, talkTimePercent, volume, energy, getCumulativeMs, sendMetrics, connectionState, remoteMetrics]);
 
   // Session timer
   const [elapsed, setElapsed] = useState(0);
