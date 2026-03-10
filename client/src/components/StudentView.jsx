@@ -3,11 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
+import { useAuth } from '../contexts/AuthContext';
 import { MetricsHistory } from '../utils/metricsHistory';
 
 function StudentView() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const { token } = useAuth();
   const { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect } = useWebRTC(sessionId, 'student');
 
   const [muted, setMuted] = useState(false);
@@ -29,7 +31,7 @@ function StudentView() {
       disconnect();
       fetch(`/api/sessions/${sessionId}/student`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(data),
       })
         .catch(err => console.error('Failed to save session data:', err))

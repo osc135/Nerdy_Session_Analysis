@@ -4,6 +4,7 @@ import { useWebRTC } from '../hooks/useWebRTC';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
 import { useNudgeEngine } from '../hooks/useNudgeEngine';
+import { useAuth } from '../contexts/AuthContext';
 import { MetricsHistory } from '../utils/metricsHistory';
 import MetricsSidebar from './MetricsSidebar';
 import NudgePanel from './NudgePanel';
@@ -11,6 +12,7 @@ import NudgePanel from './NudgePanel';
 function TutorView() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const { token } = useAuth();
   const { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect } = useWebRTC(sessionId, 'tutor');
 
   const [muted, setMuted] = useState(false);
@@ -37,7 +39,7 @@ function TutorView() {
     try {
       await fetch(`/api/sessions/${sessionId}/tutor`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(data),
       });
     } catch (err) {

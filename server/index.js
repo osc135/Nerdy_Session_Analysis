@@ -5,6 +5,9 @@ import cors from 'cors';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { initDB } from './db.js';
+import pool from './db.js';
+import authRouter, { requireAuth, optionalAuth } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SESSIONS_DIR = join(__dirname, 'sessions');
@@ -14,6 +17,9 @@ if (!existsSync(SESSIONS_DIR)) mkdirSync(SESSIONS_DIR);
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Auth routes
+app.use('/api/auth', authRouter);
 
 const server = createServer(app);
 
@@ -111,52 +117,159 @@ wss.on('connection', (ws) => {
 // --- Session Storage API ---
 
 // Save tutor metrics for a session
-app.post('/api/sessions/:id/tutor', (req, res) => {
-  const sessionFile = join(SESSIONS_DIR, `${req.params.id}.json`);
-  const session = loadSession(sessionFile);
-  session.tutor = req.body;
-  session.updatedAt = new Date().toISOString();
-  saveSession(sessionFile, session);
-  checkAndMerge(session, sessionFile, req.params.id);
-  res.json({ status: 'ok' });
+app.post('/api/sessions/:id/tutor', optionalAuth, async (req, res) => {
+  try {
+    const code = req.params.id;
+    const userId = req.user?.id || null;
+
+    // Upsert: create row if it doesn't exist
+    const [existing] = await pool.query('SELECT id FROM sessions WHERE session_code = ?', [code]);
+    if (existing.length === 0) {
+      await pool.query(
+        'INSERT INTO sessions (session_code, tutor_id, tutor_metrics) VALUES (?, ?, ?)',
+        [code, userId, JSON.stringify(req.body)]
+      );
+    } else {
+      await pool.query(
+        'UPDATE sessions SET tutor_id = COALESCE(?, tutor_id), tutor_metrics = ?, ended_at = NOW() WHERE session_code = ?',
+        [userId, JSON.stringify(req.body), code]
+      );
+    }
+
+    // Check if both sides are saved
+    const [rows] = await pool.query('SELECT * FROM sessions WHERE session_code = ?', [code]);
+    if (rows[0]?.tutor_metrics && rows[0]?.student_metrics) {
+      await pool.query('UPDATE sessions SET merged = TRUE WHERE session_code = ?', [code]);
+      notifyReportReady(code);
+    }
+
+    // Also save to JSON for backward compatibility
+    const sessionFile = join(SESSIONS_DIR, `${code}.json`);
+    const session = loadSession(sessionFile);
+    session.tutor = req.body;
+    session.updatedAt = new Date().toISOString();
+    saveSession(sessionFile, session);
+    checkAndMerge(session, sessionFile, code);
+
+    res.json({ status: 'ok' });
+  } catch (err) {
+    console.error('Save tutor metrics error:', err);
+    res.status(500).json({ error: 'Failed to save metrics' });
+  }
 });
 
 // Save student metrics for a session
-app.post('/api/sessions/:id/student', (req, res) => {
-  const sessionFile = join(SESSIONS_DIR, `${req.params.id}.json`);
-  const session = loadSession(sessionFile);
-  session.student = req.body;
-  session.updatedAt = new Date().toISOString();
-  saveSession(sessionFile, session);
-  checkAndMerge(session, sessionFile, req.params.id);
-  res.json({ status: 'ok' });
+app.post('/api/sessions/:id/student', optionalAuth, async (req, res) => {
+  try {
+    const code = req.params.id;
+    const userId = req.user?.id || null;
+
+    const [existing] = await pool.query('SELECT id FROM sessions WHERE session_code = ?', [code]);
+    if (existing.length === 0) {
+      await pool.query(
+        'INSERT INTO sessions (session_code, student_id, student_metrics) VALUES (?, ?, ?)',
+        [code, userId, JSON.stringify(req.body)]
+      );
+    } else {
+      await pool.query(
+        'UPDATE sessions SET student_id = COALESCE(?, student_id), student_metrics = ?, ended_at = NOW() WHERE session_code = ?',
+        [userId, JSON.stringify(req.body), code]
+      );
+    }
+
+    const [rows] = await pool.query('SELECT * FROM sessions WHERE session_code = ?', [code]);
+    if (rows[0]?.tutor_metrics && rows[0]?.student_metrics) {
+      await pool.query('UPDATE sessions SET merged = TRUE WHERE session_code = ?', [code]);
+      notifyReportReady(code);
+    }
+
+    // Also save to JSON for backward compatibility
+    const sessionFile = join(SESSIONS_DIR, `${code}.json`);
+    const session = loadSession(sessionFile);
+    session.student = req.body;
+    session.updatedAt = new Date().toISOString();
+    saveSession(sessionFile, session);
+    checkAndMerge(session, sessionFile, code);
+
+    res.json({ status: 'ok' });
+  } catch (err) {
+    console.error('Save student metrics error:', err);
+    res.status(500).json({ error: 'Failed to save metrics' });
+  }
 });
 
 // Get session report
-app.get('/api/sessions/:id/report', (req, res) => {
-  const sessionFile = join(SESSIONS_DIR, `${req.params.id}.json`);
-  if (!existsSync(sessionFile)) {
-    return res.status(404).json({ error: 'Session not found' });
+app.get('/api/sessions/:id/report', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM sessions WHERE session_code = ?', [req.params.id]);
+    if (rows.length > 0 && rows[0].tutor_metrics) {
+      const session = rows[0];
+      return res.json({
+        sessionId: session.session_code,
+        tutor: typeof session.tutor_metrics === 'string' ? JSON.parse(session.tutor_metrics) : session.tutor_metrics,
+        student: session.student_metrics ? (typeof session.student_metrics === 'string' ? JSON.parse(session.student_metrics) : session.student_metrics) : null,
+        merged: session.merged,
+        createdAt: session.created_at,
+      });
+    }
+
+    // Fallback to JSON file
+    const sessionFile = join(SESSIONS_DIR, `${req.params.id}.json`);
+    if (!existsSync(sessionFile)) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    const session = JSON.parse(readFileSync(sessionFile, 'utf-8'));
+    res.json(session);
+  } catch (err) {
+    console.error('Get report error:', err);
+    res.status(500).json({ error: 'Failed to get report' });
   }
-  const session = JSON.parse(readFileSync(sessionFile, 'utf-8'));
-  res.json(session);
 });
 
-// Get session history for trend analysis
-app.get('/api/sessions/history', (req, res) => {
-  if (!existsSync(SESSIONS_DIR)) return res.json([]);
-  const files = readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'));
-  const sessions = files.map(f => {
-    const data = JSON.parse(readFileSync(join(SESSIONS_DIR, f), 'utf-8'));
-    return {
-      sessionId: data.sessionId,
-      createdAt: data.createdAt,
-      duration: data.duration,
-      engagementScore: data.report?.engagementScore,
-    };
-  });
-  res.json(sessions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+// Get session history for the logged-in user
+app.get('/api/sessions/history', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT session_code, tutor_id, student_id, tutor_metrics, student_metrics, merged, created_at, ended_at
+       FROM sessions
+       WHERE tutor_id = ? OR student_id = ?
+       ORDER BY created_at DESC`,
+      [req.user.id, req.user.id]
+    );
+
+    const sessions = rows.map(row => {
+      const tutorMetrics = row.tutor_metrics ? (typeof row.tutor_metrics === 'string' ? JSON.parse(row.tutor_metrics) : row.tutor_metrics) : null;
+      const studentMetrics = row.student_metrics ? (typeof row.student_metrics === 'string' ? JSON.parse(row.student_metrics) : row.student_metrics) : null;
+      const role = row.tutor_id === req.user.id ? 'tutor' : 'student';
+
+      return {
+        sessionCode: row.session_code,
+        role,
+        merged: row.merged,
+        createdAt: row.created_at,
+        endedAt: row.ended_at,
+        tutorMetrics,
+        studentMetrics,
+      };
+    });
+
+    res.json(sessions);
+  } catch (err) {
+    console.error('Get history error:', err);
+    res.status(500).json({ error: 'Failed to get history' });
+  }
 });
+
+function notifyReportReady(sessionCode) {
+  const room = rooms.get(sessionCode);
+  if (room) {
+    for (const role of ['tutor', 'student']) {
+      if (room[role]?.readyState === 1) {
+        room[role].send(JSON.stringify({ type: 'report_ready', sessionId: sessionCode }));
+      }
+    }
+  }
+}
 
 // --- Claude API proxy for nudge generation ---
 app.post('/api/nudge', async (req, res) => {
@@ -229,7 +342,15 @@ function checkAndMerge(session, file, sessionId) {
 
 // --- Start ---
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`WebSocket signaling on ws://localhost:${PORT}/ws`);
-});
+
+initDB()
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`WebSocket signaling on ws://localhost:${PORT}/ws`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  });
