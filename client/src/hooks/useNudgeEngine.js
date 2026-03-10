@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const COOLDOWN_MS = 5 * 60 * 1000; // same nudge type can't fire within 5 minutes
+const COOLDOWN_MS = 2 * 60 * 1000; // same nudge type can't fire within 2 minutes
 const CHECK_INTERVAL_MS = 2000;     // check thresholds every 2 seconds
 
 // Nudge definitions: each has a type key, a check function, and a message
 const NUDGE_RULES = [
+  {
+    type: 'student_muted',
+    message: 'Your student has been muted for a while. They may have forgotten to unmute, or might not feel comfortable speaking up.',
+    check: ({ studentMutedMs }) => studentMutedMs >= 120_000,
+  },
   {
     type: 'student_silence',
     message: 'Your student hasn\'t spoken in over 3 minutes. Try asking an open-ended question to re-engage them.',
@@ -47,9 +52,13 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
   useEffect(() => { localMetricsRef.current = localMetrics; }, [localMetrics]);
   useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
 
-  // Track student silence duration
+  // Track student silence duration (mic on but not talking)
   const studentSilenceStartRef = useRef(null);
   const studentSilenceMsRef = useRef(0);
+
+  // Track student muted duration
+  const studentMutedStartRef = useRef(null);
+  const studentMutedMsRef = useRef(0);
 
   // Track low eye contact duration
   const lowGazeStartRef = useRef(null);
@@ -79,19 +88,34 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
 
       const now = Date.now();
       const studentSpeaking = remote.isSpeaking;
+      const studentMuted = remote.muted ?? false;
       const tutorSpeaking = local.isSpeaking;
       const studentGaze = remote.gazeScore ?? 0;
       const studentEnergy = Math.round((remote.energy ?? 0) * 100);
 
-      // --- Student silence tracking ---
-      if (studentSpeaking) {
+      // --- Student muted tracking ---
+      if (studentMuted) {
+        if (!studentMutedStartRef.current) {
+          studentMutedStartRef.current = now;
+        }
+        studentMutedMsRef.current = now - studentMutedStartRef.current;
+        // Reset silence timer while muted (silence = mic on but not talking)
         studentSilenceStartRef.current = null;
         studentSilenceMsRef.current = 0;
       } else {
-        if (!studentSilenceStartRef.current) {
-          studentSilenceStartRef.current = now;
+        studentMutedStartRef.current = null;
+        studentMutedMsRef.current = 0;
+
+        // --- Student silence tracking (only when not muted) ---
+        if (studentSpeaking) {
+          studentSilenceStartRef.current = null;
+          studentSilenceMsRef.current = 0;
+        } else {
+          if (!studentSilenceStartRef.current) {
+            studentSilenceStartRef.current = now;
+          }
+          studentSilenceMsRef.current = now - studentSilenceStartRef.current;
         }
-        studentSilenceMsRef.current = now - studentSilenceStartRef.current;
       }
 
       // --- Low eye contact duration tracking ---
@@ -140,6 +164,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
 
       // --- Check all rules ---
       const context = {
+        studentMutedMs: studentMutedMsRef.current,
         studentSilenceMs: studentSilenceMsRef.current,
         studentGaze,
         studentGazeDuration: lowGazeDurationRef.current,

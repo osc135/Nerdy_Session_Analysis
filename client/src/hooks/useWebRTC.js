@@ -4,7 +4,7 @@ const STUN_SERVERS = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
 
-const WS_URL = `ws://${window.location.hostname}:3001/ws`;
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
 export function useWebRTC(sessionId, role) {
   const [connectionState, setConnectionState] = useState('disconnected');
@@ -79,9 +79,14 @@ export function useWebRTC(sessionId, role) {
         });
       };
 
-      // Track connection state
+      // Track connection state — only update for meaningful transitions
+      // so we don't overwrite our custom 'waiting' state with PC states like 'new'
       pc.onconnectionstatechange = () => {
-        setConnectionState(pc.connectionState);
+        if (cancelled) return;
+        const state = pc.connectionState;
+        if (state === 'connected' || state === 'failed' || state === 'closed' || state === 'disconnected') {
+          setConnectionState(state === 'closed' ? 'disconnected' : state);
+        }
       };
 
       // 3. Set up data channel (tutor creates, student receives)
@@ -101,6 +106,7 @@ export function useWebRTC(sessionId, role) {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (cancelled) { ws.close(); return; }
         ws.send(JSON.stringify({ type: 'join', sessionId, role }));
         setConnectionState('waiting');
       };
@@ -109,7 +115,7 @@ export function useWebRTC(sessionId, role) {
       const iceCandidateQueue = [];
 
       pc.onicecandidate = (event) => {
-        if (event.candidate && ws.readyState === WebSocket.OPEN) {
+        if (event.candidate && ws.readyState === WebSocket.OPEN && !cancelled) {
           ws.send(
             JSON.stringify({ type: 'ice-candidate', candidate: event.candidate })
           );
@@ -117,6 +123,7 @@ export function useWebRTC(sessionId, role) {
       };
 
       ws.onmessage = async (event) => {
+        if (cancelled) return;
         const msg = JSON.parse(event.data);
 
         switch (msg.type) {
@@ -181,7 +188,7 @@ export function useWebRTC(sessionId, role) {
 
     start().catch((err) => {
       console.error('useWebRTC error:', err);
-      setConnectionState('failed');
+      if (!cancelled) setConnectionState('failed');
     });
 
     // Cleanup on unmount

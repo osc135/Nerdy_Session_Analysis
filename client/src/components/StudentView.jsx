@@ -53,30 +53,40 @@ function StudentView() {
     }
   }, [connectionState]);
 
+  // Keep latest values in refs so the send interval stays stable
+  const latestRef = useRef({ gazeScore: 0, isSpeaking: false, talkTimePercent: 0, volume: 0, energy: 0, muted: false });
+  latestRef.current = { gazeScore, isSpeaking, talkTimePercent, volume, energy, muted };
+  const remoteMetricsRef = useRef(null);
+  remoteMetricsRef.current = remoteMetrics;
+  const connectionStateRef = useRef(connectionState);
+  connectionStateRef.current = connectionState;
+
   // Send local metrics over data channel so tutor can see them
   // Record snapshots for report at 2s (every 4th tick)
   const sendTickRef = useRef(0);
   useEffect(() => {
     const interval = setInterval(() => {
       const audio = getCumulativeMs();
+      const m = latestRef.current;
       const localData = {
-        gazeScore,
-        isSpeaking,
-        talkTimePercent,
-        volume,
-        energy,
+        gazeScore: m.gazeScore,
+        isSpeaking: m.isSpeaking,
+        talkTimePercent: m.talkTimePercent,
+        volume: m.volume,
+        energy: m.energy,
+        muted: m.muted,
         speakingMs: audio.speakingMs,
         totalMs: audio.totalMs,
       };
       sendMetrics(localData);
 
       sendTickRef.current++;
-      if (sendTickRef.current % 4 === 0 && connectionState === 'connected') {
-        historyRef.current.addSnapshot(localData, remoteMetrics || {});
+      if (sendTickRef.current % 4 === 0 && connectionStateRef.current === 'connected') {
+        historyRef.current.addSnapshot(localData, remoteMetricsRef.current || {});
       }
     }, 500);
     return () => clearInterval(interval);
-  }, [gazeScore, isSpeaking, talkTimePercent, volume, energy, getCumulativeMs, sendMetrics, connectionState, remoteMetrics]);
+  }, [getCumulativeMs, sendMetrics]);
 
   // Session timer
   const [elapsed, setElapsed] = useState(0);
@@ -128,11 +138,11 @@ function StudentView() {
       <div style={styles.videos}>
         <div style={styles.videoBox}>
           <video ref={remoteVideoRef} autoPlay playsInline style={styles.video} />
-          <span style={styles.label}>Tutor</span>
+          <span style={styles.label}>Tutor{remoteMetrics?.muted ? ' (Muted)' : ''}</span>
         </div>
         <div style={styles.localVideoBox}>
           <video ref={localVideoRef} autoPlay muted playsInline style={styles.video} />
-          <span style={styles.label}>You</span>
+          <span style={styles.label}>You{muted ? ' (Muted)' : ''}</span>
         </div>
       </div>
     </div>

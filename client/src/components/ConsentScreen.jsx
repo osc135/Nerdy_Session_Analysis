@@ -21,12 +21,18 @@ function usePreloadMediaPipe() {
 function ConsentScreen() {
   usePreloadMediaPipe();
   const [agreed, setAgreed] = useState(false);
+  const [sessionCode, setSessionCode] = useState('');
   const navigate = useNavigate();
 
-  const handleJoin = (role) => {
+  const handleTutorJoin = () => {
     if (!agreed) return;
     const sessionId = crypto.randomUUID().slice(0, 8);
-    navigate(`/${role}/${sessionId}`);
+    navigate(`/tutor/${sessionId}`);
+  };
+
+  const handleStudentJoin = () => {
+    if (!agreed || !sessionCode.trim()) return;
+    navigate(`/student/${sessionCode.trim()}`);
   };
 
   return (
@@ -60,15 +66,30 @@ function ConsentScreen() {
         <div style={styles.buttons}>
           <button
             style={{ ...styles.button, ...styles.tutorButton, opacity: agreed ? 1 : 0.5 }}
-            onClick={() => handleJoin('tutor')}
+            onClick={handleTutorJoin}
             disabled={!agreed}
           >
             Join as Tutor
           </button>
+        </div>
+
+        <div style={styles.divider}>
+          <span style={styles.dividerText}>or join an existing session</span>
+        </div>
+
+        <div style={styles.studentJoin}>
+          <input
+            type="text"
+            placeholder="Enter session code"
+            value={sessionCode}
+            onChange={(e) => setSessionCode(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleStudentJoin()}
+            style={styles.codeInput}
+          />
           <button
-            style={{ ...styles.button, ...styles.studentButton, opacity: agreed ? 1 : 0.5 }}
-            onClick={() => handleJoin('student')}
-            disabled={!agreed}
+            style={{ ...styles.button, ...styles.studentButton, opacity: agreed && sessionCode.trim() ? 1 : 0.5 }}
+            onClick={handleStudentJoin}
+            disabled={!agreed || !sessionCode.trim()}
           >
             Join as Student
           </button>
@@ -149,6 +170,33 @@ const styles = {
   studentButton: {
     background: '#1f6feb',
     color: 'white',
+  },
+  divider: {
+    display: 'flex',
+    alignItems: 'center',
+    margin: '1.5rem 0',
+    gap: '1rem',
+  },
+  dividerText: {
+    color: '#8b949e',
+    fontSize: '0.85rem',
+    whiteSpace: 'nowrap',
+    width: '100%',
+    textAlign: 'center',
+  },
+  studentJoin: {
+    display: 'flex',
+    gap: '1rem',
+  },
+  codeInput: {
+    flex: 1,
+    padding: '0.75rem 1rem',
+    borderRadius: '8px',
+    border: '1px solid #30363d',
+    background: '#0d1117',
+    color: '#c9d1d9',
+    fontSize: '1rem',
+    outline: 'none',
   },
 };
 
