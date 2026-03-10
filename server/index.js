@@ -21,6 +21,12 @@ app.use(express.json({ limit: '10mb' }));
 // Auth routes
 app.use('/api/auth', authRouter);
 
+// Serve client build in production
+const clientDist = join(__dirname, '..', 'client', 'dist');
+if (existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+}
+
 const server = createServer(app);
 
 // --- WebSocket Signaling Server ---
@@ -338,6 +344,13 @@ function checkAndMerge(session, file, sessionId) {
     }
     console.log(`[${sessionId}] report merged and ready`);
   }
+}
+
+// Catch-all: serve React app for client-side routing
+if (existsSync(clientDist)) {
+  app.get('*', (req, res) => {
+    res.sendFile(join(clientDist, 'index.html'));
+  });
 }
 
 // --- Start ---
