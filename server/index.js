@@ -358,7 +358,7 @@ const PORT = process.env.PORT || 3001;
 
 initDB()
   .then(() => {
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`WebSocket signaling on ws://localhost:${PORT}/ws`);
     });
