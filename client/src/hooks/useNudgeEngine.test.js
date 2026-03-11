@@ -222,17 +222,17 @@ describe('useNudgeEngine – talk_time_imbalance', () => {
         getCumulativeMs: () => ({ speakingMs: 250_000, totalMs: 300_000 }),
       },
       remoteMetrics: { isSpeaking: false, gazeScore: 80, energy: 0.5, speakingMs: 50_000 },
-      elapsed: 310, // > 300 seconds
       sessionType: 'practice', // threshold 55%, tutor at 83%
     });
 
     const { result } = renderHook(() => useNudgeEngine(props));
 
-    advanceTime(CHECK_INTERVAL);
+    // Advance past 5 minutes so sessionMs (Date.now since student joined) exceeds 300s
+    advanceTime(305_000);
 
     const talkNudge = result.current.find(n => n.type === 'talk_time_imbalance');
     expect(talkNudge).toBeDefined();
-    expect(talkNudge.message).toContain('student should be doing most of the work');
+    expect(talkNudge.message).toContain('30-55% target');
   });
 
   it('does NOT fire before 5 minutes into the session', () => {
@@ -242,13 +242,13 @@ describe('useNudgeEngine – talk_time_imbalance', () => {
         getCumulativeMs: () => ({ speakingMs: 200_000, totalMs: 240_000 }),
       },
       remoteMetrics: { isSpeaking: false, gazeScore: 80, energy: 0.5, speakingMs: 30_000 },
-      elapsed: 250, // < 300 seconds
       sessionType: 'practice',
     });
 
     const { result } = renderHook(() => useNudgeEngine(props));
 
-    advanceTime(CHECK_INTERVAL);
+    // Only 4 minutes — not enough for 5-minute gate
+    advanceTime(240_000);
 
     const talkNudge = result.current.find(n => n.type === 'talk_time_imbalance');
     expect(talkNudge).toBeUndefined();
@@ -261,13 +261,12 @@ describe('useNudgeEngine – talk_time_imbalance', () => {
         getCumulativeMs: () => ({ speakingMs: 150_000, totalMs: 300_000 }),
       },
       remoteMetrics: { isSpeaking: false, gazeScore: 80, energy: 0.5, speakingMs: 150_000 },
-      elapsed: 310,
       sessionType: 'socratic', // threshold 65%, tutor at 50% — within range
     });
 
     const { result } = renderHook(() => useNudgeEngine(props));
 
-    advanceTime(CHECK_INTERVAL);
+    advanceTime(305_000);
 
     const talkNudge = result.current.find(n => n.type === 'talk_time_imbalance');
     expect(talkNudge).toBeUndefined();

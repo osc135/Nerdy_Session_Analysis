@@ -3,11 +3,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 const COOLDOWN_MS = 2 * 60 * 1000; // same nudge type can't fire within 2 minutes
 const CHECK_INTERVAL_MS = 2000;     // check thresholds every 2 seconds
 
-// Talk time thresholds per session type — nudge fires when tutor exceeds this
+// Talk time thresholds per session type
 const TALK_TIME_THRESHOLDS = {
-  lecture:  { max: 85, message: 'Even in a lecture, pausing to check for understanding helps. Try asking a quick question.' },
-  practice: { max: 55, message: 'In a practice session, the student should be doing most of the work. Try stepping back and letting them lead.' },
-  socratic: { max: 65, message: 'A Socratic discussion works best as a dialogue. Try asking a thought-provoking question instead of explaining.' },
+  lecture:  { min: 70, max: 85 },
+  practice: { min: 30, max: 55 },
+  socratic: { min: 40, max: 65 },
 };
 
 // Nudge definitions: each has a type key, a check function, and a message
@@ -41,14 +41,27 @@ const NUDGE_RULES = [
   {
     type: 'talk_time_imbalance',
     requiresStudent: true,
-    message: null, // set dynamically based on session type
+    message: null,
     check: ({ tutorTalkPercent, sessionMs, sessionType }) => {
       const threshold = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
       return tutorTalkPercent > threshold.max && sessionMs >= 300_000;
     },
     getMessage: ({ sessionType }) => {
+      const t = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
+      return `You're talking more than the ${t.min}-${t.max}% target for this session type. Try giving the student more space to participate.`;
+    },
+  },
+  {
+    type: 'talk_time_low',
+    requiresStudent: true,
+    message: null,
+    check: ({ tutorTalkPercent, sessionMs, sessionType, totalSpeakingMs }) => {
       const threshold = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
-      return threshold.message;
+      return tutorTalkPercent < threshold.min && sessionMs >= 300_000 && totalSpeakingMs >= 60_000;
+    },
+    getMessage: ({ sessionType }) => {
+      const t = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
+      return `You're talking less than the ${t.min}-${t.max}% target for this session type. The student may need more guidance or explanation.`;
     },
   },
   {
@@ -119,8 +132,9 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
   const bothSpeakingRef = useRef(false);
   const prevSpeakingRef = useRef({ tutor: false, student: false });
 
-  // Track whether we've ever received student data
+  // Track whether we've ever received student data and when
   const hasStudentRef = useRef(false);
+  const studentJoinedAtRef = useRef(null);
 
   const formatTime = useCallback((s) => {
     const m = Math.floor(s / 60);
@@ -135,7 +149,13 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
     const interval = setInterval(() => {
       const remote = remoteMetricsRef.current;
       const local = localMetricsRef.current;
-      if (remote) hasStudentRef.current = true;
+      if (remote && !hasStudentRef.current) {
+        hasStudentRef.current = true;
+        studentJoinedAtRef.current = Date.now();
+      }
+
+      // Don't track anything until student has joined
+      if (!hasStudentRef.current) return;
 
       const now = Date.now();
       const studentSpeaking = remote?.isSpeaking ?? false;
@@ -244,7 +264,8 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
         ? Math.round((localAudio.speakingMs / totalSpeakingMs) * 100)
         : 0;
 
-      const sessionMs = elapsedRef.current * 1000;
+      // Time since student joined (not page load)
+      const sessionMs = studentJoinedAtRef.current ? now - studentJoinedAtRef.current : 0;
 
       // --- Check all rules ---
       const context = {
@@ -255,6 +276,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
         tutorGaze,
         tutorGazeDuration: tutorLowGazeDurationRef.current,
         tutorTalkPercent,
+        totalSpeakingMs,
         sessionMs,
         energyDrop,
         recentInterruptions,

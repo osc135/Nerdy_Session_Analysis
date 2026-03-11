@@ -59,12 +59,16 @@ function TutorView() {
   // Audio analysis for local mic
   const { isSpeaking, talkTimePercent, volume, energy, getCumulativeMs } = useAudioAnalysis(localStream);
 
-  // Start history recording when connected
+  // Start history recording only when student joins (first remoteMetrics received)
+  const historyStartedRef = useRef(false);
+  const [sessionActive, setSessionActive] = useState(false);
   useEffect(() => {
-    if (connectionState === 'connected') {
+    if (remoteMetrics && !historyStartedRef.current) {
+      historyStartedRef.current = true;
       historyRef.current.start();
+      setSessionActive(true);
     }
-  }, [connectionState]);
+  }, [remoteMetrics]);
 
   // Keep latest values in refs so the send interval stays stable
   const latestRef = useRef({ gazeScore: 0, isSpeaking: false, talkTimePercent: 0, volume: 0, energy: 0, muted: false });
@@ -94,7 +98,7 @@ function TutorView() {
       sendMetrics(localData);
 
       sendTickRef.current++;
-      if (sendTickRef.current % 4 === 0 && connectionStateRef.current === 'connected') {
+      if (sendTickRef.current % 4 === 0 && historyStartedRef.current) {
         // Compute attention drift for snapshot only (derived from student metrics, not sent over wire)
         const rm = remoteMetricsRef.current;
         let attentionDrift = null;
@@ -110,12 +114,13 @@ function TutorView() {
     return () => clearInterval(interval);
   }, [getCumulativeMs, sendMetrics]);
 
-  // Session timer
+  // Session timer — starts when student joins
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
+    if (!sessionActive) return;
     const interval = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [sessionActive]);
 
   const formatTime = (s) => {
     const m = Math.floor(s / 60);

@@ -236,26 +236,12 @@ function PostSessionReport() {
               <div style={styles.benchmarkNote}>
                 Target for {bench.label}: {bench.min}-{bench.max}% tutor
               </div>
-              <div style={styles.balanceLabels}>
-                <span style={styles.balanceLabelLeft}>Tutor {summary.talkTime.tutor}%</span>
-                <span style={styles.balanceLabelRight}>Student {summary.talkTime.student}%</span>
-              </div>
-              <div style={styles.balanceTrack}>
-                <div style={{
-                  height: '100%',
-                  width: `${summary.talkTime.tutor}%`,
-                  background: '#e8985a',
-                  borderRadius: summary.talkTime.student === 0 ? '4px' : '4px 0 0 4px',
-                  opacity: 0.8,
-                }} />
-                <div style={{
-                  height: '100%',
-                  width: `${summary.talkTime.student}%`,
-                  background: '#7ab8e0',
-                  borderRadius: summary.talkTime.tutor === 0 ? '4px' : '0 4px 4px 0',
-                  opacity: 0.8,
-                }} />
-              </div>
+              <TalkTimeDonut
+                tutor={summary.talkTime.tutor}
+                student={summary.talkTime.student}
+                benchMin={bench.min}
+                benchMax={bench.max}
+              />
             </div>
           </div>
         )}
@@ -359,6 +345,73 @@ function MetricCard({ label, value, unit, color }) {
       <div style={styles.cardValueRow}>
         <span style={{ ...styles.cardValue, color }}>{value}</span>
         <span style={{ ...styles.cardUnit, color }}>{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+function TalkTimeDonut({ tutor, student, benchMin, benchMax }) {
+  const size = 180;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = 68;
+  const stroke = 10;
+
+  const tutorAngle = (tutor / 100) * 360;
+  const studentAngle = (student / 100) * 360;
+  const benchMinAngle = (benchMin / 100) * 360;
+  const benchMaxAngle = (benchMax / 100) * 360;
+
+  // Circumference for stroke-dasharray based arcs
+  const circ = 2 * Math.PI * radius;
+
+  function dashArc(startDeg, spanDeg) {
+    const len = (spanDeg / 360) * circ;
+    const offset = -(startDeg / 360) * circ;
+    return { strokeDasharray: `${len} ${circ - len}`, strokeDashoffset: offset };
+  }
+
+  const inRange = tutor >= benchMin && tutor <= benchMax;
+  const statusLabel = inRange ? 'On target' : tutor > benchMax ? 'Over target' : 'Under target';
+  const statusColor = inRange ? '#6ee7a0' : tutor > benchMax ? '#f08080' : '#d4a04a';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0' }}>
+      <div style={{ position: 'relative', width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+          {/* Background track */}
+          <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#1e232d" strokeWidth={stroke} />
+          {/* Tutor arc */}
+          {tutor > 0 && (
+            <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#e8985a" strokeWidth={stroke}
+              {...dashArc(0, tutorAngle)} />
+          )}
+          {/* Student arc */}
+          {student > 0 && (
+            <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#7ab8e0" strokeWidth={stroke}
+              {...dashArc(tutorAngle, studentAngle)} />
+          )}
+        </svg>
+        {/* Center text overlay */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+        }}>
+          <span style={{ fontSize: '1.5rem', fontWeight: 700, color: statusColor, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{tutor}%</span>
+          <span style={{ fontSize: '0.68rem', color: statusColor, fontWeight: 600, marginTop: '2px' }}>{statusLabel}</span>
+        </div>
+      </div>
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.78rem' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e8985a' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e8985a', flexShrink: 0 }} />
+          Tutor {tutor}%
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#7ab8e0' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#7ab8e0', flexShrink: 0 }} />
+          Student {student}%
+        </span>
       </div>
     </div>
   );
