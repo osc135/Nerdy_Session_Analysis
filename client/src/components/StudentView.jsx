@@ -203,16 +203,18 @@ const styles = {
   videos: {
     flex: 1,
     display: 'flex',
-    gap: '1rem',
+    flexDirection: 'column',
+    gap: '0.5rem',
     minHeight: 0,
   },
   videoBox: {
-    flex: 3,
+    flex: 1,
     position: 'relative',
     background: '#161b22',
     borderRadius: '8px',
     overflow: 'hidden',
     border: '1px solid #30363d',
+    minHeight: 0,
   },
   localVideoBox: {
     flex: 1,
@@ -221,6 +223,7 @@ const styles = {
     borderRadius: '8px',
     overflow: 'hidden',
     border: '1px solid #30363d',
+    minHeight: 0,
   },
   video: {
     width: '100%',

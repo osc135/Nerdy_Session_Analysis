@@ -1,0 +1,16 @@
+services:
+  mysql:
+    image: mysql:9.4
+    container_name: nerdy-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: nerdy123
+      MYSQL_DATABASE: nerdy_sessions
+      MYSQL_USER: nerdy
+      MYSQL_PASSWORD: nerdy123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+volumes:
+  mysql-data:

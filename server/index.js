@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import cors from 'cors';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
+import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { initDB } from './db.js';
@@ -10,9 +10,6 @@ import pool from './db.js';
 import authRouter, { requireAuth, optionalAuth } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SESSIONS_DIR = join(__dirname, 'sessions');
-
-if (!existsSync(SESSIONS_DIR)) mkdirSync(SESSIONS_DIR);
 
 const app = express();
 app.use(cors());
@@ -128,19 +125,12 @@ app.post('/api/sessions/:id/tutor', optionalAuth, async (req, res) => {
     const code = req.params.id;
     const userId = req.user?.id || null;
 
-    // Upsert: create row if it doesn't exist
-    const [existing] = await pool.query('SELECT id FROM sessions WHERE session_code = ?', [code]);
-    if (existing.length === 0) {
-      await pool.query(
-        'INSERT INTO sessions (session_code, tutor_id, tutor_metrics) VALUES (?, ?, ?)',
-        [code, userId, JSON.stringify(req.body)]
-      );
-    } else {
-      await pool.query(
-        'UPDATE sessions SET tutor_id = COALESCE(?, tutor_id), tutor_metrics = ?, ended_at = NOW() WHERE session_code = ?',
-        [userId, JSON.stringify(req.body), code]
-      );
-    }
+    await pool.query(
+      `INSERT INTO sessions (session_code, tutor_id, tutor_metrics)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE tutor_id = COALESCE(?, tutor_id), tutor_metrics = VALUES(tutor_metrics), ended_at = NOW()`,
+      [code, userId, JSON.stringify(req.body), userId]
+    );
 
     // Check if both sides are saved
     const [rows] = await pool.query('SELECT * FROM sessions WHERE session_code = ?', [code]);
@@ -148,14 +138,6 @@ app.post('/api/sessions/:id/tutor', optionalAuth, async (req, res) => {
       await pool.query('UPDATE sessions SET merged = TRUE WHERE session_code = ?', [code]);
       notifyReportReady(code);
     }
-
-    // Also save to JSON for backward compatibility
-    const sessionFile = join(SESSIONS_DIR, `${code}.json`);
-    const session = loadSession(sessionFile);
-    session.tutor = req.body;
-    session.updatedAt = new Date().toISOString();
-    saveSession(sessionFile, session);
-    checkAndMerge(session, sessionFile, code);
 
     res.json({ status: 'ok' });
   } catch (err) {
@@ -170,32 +152,18 @@ app.post('/api/sessions/:id/student', optionalAuth, async (req, res) => {
     const code = req.params.id;
     const userId = req.user?.id || null;
 
-    const [existing] = await pool.query('SELECT id FROM sessions WHERE session_code = ?', [code]);
-    if (existing.length === 0) {
-      await pool.query(
-        'INSERT INTO sessions (session_code, student_id, student_metrics) VALUES (?, ?, ?)',
-        [code, userId, JSON.stringify(req.body)]
-      );
-    } else {
-      await pool.query(
-        'UPDATE sessions SET student_id = COALESCE(?, student_id), student_metrics = ?, ended_at = NOW() WHERE session_code = ?',
-        [userId, JSON.stringify(req.body), code]
-      );
-    }
+    await pool.query(
+      `INSERT INTO sessions (session_code, student_id, student_metrics)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE student_id = COALESCE(?, student_id), student_metrics = VALUES(student_metrics), ended_at = NOW()`,
+      [code, userId, JSON.stringify(req.body), userId]
+    );
 
     const [rows] = await pool.query('SELECT * FROM sessions WHERE session_code = ?', [code]);
     if (rows[0]?.tutor_metrics && rows[0]?.student_metrics) {
       await pool.query('UPDATE sessions SET merged = TRUE WHERE session_code = ?', [code]);
       notifyReportReady(code);
     }
-
-    // Also save to JSON for backward compatibility
-    const sessionFile = join(SESSIONS_DIR, `${code}.json`);
-    const session = loadSession(sessionFile);
-    session.student = req.body;
-    session.updatedAt = new Date().toISOString();
-    saveSession(sessionFile, session);
-    checkAndMerge(session, sessionFile, code);
 
     res.json({ status: 'ok' });
   } catch (err) {
@@ -219,13 +187,7 @@ app.get('/api/sessions/:id/report', async (req, res) => {
       });
     }
 
-    // Fallback to JSON file
-    const sessionFile = join(SESSIONS_DIR, `${req.params.id}.json`);
-    if (!existsSync(sessionFile)) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-    const session = JSON.parse(readFileSync(sessionFile, 'utf-8'));
-    res.json(session);
+    return res.status(404).json({ error: 'Session not found' });
   } catch (err) {
     console.error('Get report error:', err);
     res.status(500).json({ error: 'Failed to get report' });
@@ -313,38 +275,6 @@ Respond with ONLY the nudge message, nothing else.`,
     res.status(500).json({ error: 'Failed to generate nudge' });
   }
 });
-
-// --- Helpers ---
-function loadSession(file) {
-  if (existsSync(file)) {
-    return JSON.parse(readFileSync(file, 'utf-8'));
-  }
-  return { createdAt: new Date().toISOString() };
-}
-
-function saveSession(file, data) {
-  writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-function checkAndMerge(session, file, sessionId) {
-  if (session.tutor && session.student) {
-    session.sessionId = sessionId;
-    session.merged = true;
-    session.mergedAt = new Date().toISOString();
-    saveSession(file, session);
-
-    // Notify both clients that report is ready
-    const room = rooms.get(sessionId);
-    if (room) {
-      for (const role of ['tutor', 'student']) {
-        if (room[role]?.readyState === 1) {
-          room[role].send(JSON.stringify({ type: 'report_ready', sessionId }));
-        }
-      }
-    }
-    console.log(`[${sessionId}] report merged and ready`);
-  }
-}
 
 // Catch-all: serve React app for client-side routing
 if (existsSync(clientDist)) {

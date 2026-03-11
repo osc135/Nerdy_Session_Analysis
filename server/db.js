@@ -35,9 +35,15 @@ export async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         ended_at TIMESTAMP NULL,
         FOREIGN KEY (tutor_id) REFERENCES users(id),
-        FOREIGN KEY (student_id) REFERENCES users(id)
+        FOREIGN KEY (student_id) REFERENCES users(id),
+        UNIQUE KEY unique_session_code (session_code)
       )
     `);
+
+    // Ensure unique index on session_code (safe to run if already exists)
+    await conn.query(`
+      ALTER TABLE sessions ADD UNIQUE INDEX unique_session_code (session_code)
+    `).catch(() => {});
 
     console.log('Database tables initialized');
   } finally {
