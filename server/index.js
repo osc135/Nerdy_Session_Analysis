@@ -198,6 +198,98 @@ app.get('/api/sessions/:id/report', requireAuth, async (req, res) => {
   }
 });
 
+// Get aggregated trend metrics across all tutor sessions
+app.get('/api/sessions/trends', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT tutor_metrics, student_metrics
+       FROM sessions
+       WHERE tutor_id = ? AND merged = TRUE AND tutor_metrics IS NOT NULL
+       ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+
+    if (rows.length === 0) {
+      return res.json({ sessionCount: 0, trends: null });
+    }
+
+    const summaries = [];
+    for (const row of rows) {
+      try {
+        const tutor = typeof row.tutor_metrics === 'string' ? JSON.parse(row.tutor_metrics) : row.tutor_metrics;
+        const student = row.student_metrics
+          ? (typeof row.student_metrics === 'string' ? JSON.parse(row.student_metrics) : row.student_metrics)
+          : null;
+        const snaps = tutor?.snapshots || [];
+        if (snaps.length === 0) continue;
+
+        // Eye contact averages
+        let tutorGazeSum = 0, studentGazeSum = 0;
+        for (const s of snaps) {
+          tutorGazeSum += s.tutor?.gazeScore || 0;
+          studentGazeSum += s.student?.gazeScore || 0;
+        }
+
+        // Talk time from last snapshot
+        const last = snaps[snaps.length - 1];
+        const tutorMs = last.tutor?.speakingMs || 0;
+        const studentMs = last.student?.speakingMs || 0;
+        const totalMs = tutorMs + studentMs;
+
+        // Energy averages
+        let tutorEnergySum = 0, studentEnergySum = 0;
+        for (const s of snaps) {
+          const tE = s.tutor?.energy ?? 0;
+          const sE = s.student?.energy ?? 0;
+          tutorEnergySum += tE <= 1 ? tE * 100 : tE;
+          studentEnergySum += sE <= 1 ? sE * 100 : sE;
+        }
+
+        // Interruption count
+        let interruptions = 0;
+        let wasBoth = false;
+        for (const s of snaps) {
+          const both = !!s.tutor?.isSpeaking && !!s.student?.isSpeaking;
+          if (both && !wasBoth) interruptions++;
+          wasBoth = both;
+        }
+        const durationMin = Math.max((snaps[snaps.length - 1].elapsed - snaps[0].elapsed) / 60000, 1 / 60);
+
+        summaries.push({
+          eyeContact: Math.round(tutorGazeSum / snaps.length),
+          studentEyeContact: Math.round(studentGazeSum / snaps.length),
+          talkTime: totalMs > 0 ? Math.round((tutorMs / totalMs) * 100) : 0,
+          energy: Math.round(tutorEnergySum / snaps.length),
+          studentEnergy: Math.round(studentEnergySum / snaps.length),
+          interruptionsPerMin: Math.round((interruptions / durationMin) * 10) / 10,
+        });
+      } catch {
+        // skip malformed session
+      }
+    }
+
+    if (summaries.length === 0) {
+      return res.json({ sessionCount: 0, trends: null });
+    }
+
+    // Average across all sessions
+    const avg = (arr, key) => Math.round(arr.reduce((s, x) => s + x[key], 0) / arr.length);
+    const trends = {
+      eyeContact: avg(summaries, 'eyeContact'),
+      studentEyeContact: avg(summaries, 'studentEyeContact'),
+      talkTime: avg(summaries, 'talkTime'),
+      energy: avg(summaries, 'energy'),
+      studentEnergy: avg(summaries, 'studentEnergy'),
+      interruptionsPerMin: Math.round(summaries.reduce((s, x) => s + x.interruptionsPerMin, 0) / summaries.length * 10) / 10,
+    };
+
+    res.json({ sessionCount: summaries.length, trends });
+  } catch (err) {
+    console.error('Get trends error:', err);
+    res.status(500).json({ error: 'Failed to get trends' });
+  }
+});
+
 // Get session history for the logged-in user
 app.get('/api/sessions/history', requireAuth, async (req, res) => {
   try {

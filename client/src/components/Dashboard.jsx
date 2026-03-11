@@ -1,20 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import MetricGauge from './MetricGauge';
 
 function Dashboard() {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
+  const [trends, setTrends] = useState(null);
+  const [trendCount, setTrendCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/sessions/history', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => setSessions(Array.isArray(data) ? data : []))
-      .catch(() => setSessions([]))
+    Promise.all([
+      fetch('/api/sessions/history', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json()),
+      fetch('/api/sessions/trends', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json()),
+    ])
+      .then(([histData, trendData]) => {
+        setSessions(Array.isArray(histData) ? histData : []);
+        setTrends(trendData.trends || null);
+        setTrendCount(trendData.sessionCount || 0);
+      })
+      .catch(() => {
+        setSessions([]);
+        setTrends(null);
+      })
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -56,6 +70,32 @@ function Dashboard() {
             Start New Session
           </button>
         </div>
+
+        {/* Trend gauges */}
+        {trends && (
+          <div style={styles.trendsSection}>
+            <div style={styles.trendsHeader}>
+              <h3 style={styles.sectionTitle}>Your Trends</h3>
+              <span style={styles.trendsSub}>Averaged across {trendCount} session{trendCount !== 1 ? 's' : ''}</span>
+            </div>
+            <div style={styles.gaugeRow}>
+              <MetricGauge label="Your Eye Contact" value={trends.eyeContact} />
+              <MetricGauge label="Student Eye Contact" value={trends.studentEyeContact} />
+              <MetricGauge label="Your Talk Time" value={trends.talkTime} />
+              <MetricGauge label="Your Energy" value={trends.energy} />
+              <MetricGauge label="Student Energy" value={trends.studentEnergy} />
+            </div>
+            <div style={styles.interruptionRow}>
+              <span style={styles.interruptionLabel}>Avg Interruptions</span>
+              <span style={{
+                ...styles.interruptionValue,
+                color: trends.interruptionsPerMin > 1 ? '#e06060' : trends.interruptionsPerMin > 0.5 ? '#e8b45a' : '#6ee7a0',
+              }}>
+                {trends.interruptionsPerMin}/min
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Stats summary */}
         {sessions.length > 0 && (
@@ -195,6 +235,48 @@ const styles = {
     fontWeight: 600,
     cursor: 'pointer',
     transition: 'background 0.15s',
+  },
+  trendsSection: {
+    background: '#181c24',
+    borderRadius: '14px',
+    padding: '1.5rem',
+    border: '1px solid #252a33',
+    marginBottom: '1.5rem',
+  },
+  trendsHeader: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '0.75rem',
+    marginBottom: '1rem',
+  },
+  trendsSub: {
+    fontSize: '0.78rem',
+    color: '#6b7280',
+  },
+  gaugeRow: {
+    display: 'flex',
+    justifyContent: 'space-around',
+    alignItems: 'flex-start',
+    gap: '0.5rem',
+    flexWrap: 'wrap',
+  },
+  interruptionRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginTop: '1rem',
+    paddingTop: '0.75rem',
+    borderTop: '1px solid #252a33',
+  },
+  interruptionLabel: {
+    fontSize: '0.78rem',
+    color: '#9ca3af',
+  },
+  interruptionValue: {
+    fontSize: '0.95rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
   },
   statsRow: {
     display: 'flex',
