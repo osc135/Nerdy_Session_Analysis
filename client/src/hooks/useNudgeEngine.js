@@ -7,44 +7,52 @@ const CHECK_INTERVAL_MS = 2000;     // check thresholds every 2 seconds
 const NUDGE_RULES = [
   {
     type: 'student_muted',
+    requiresStudent: true,
     message: 'Your student has been muted for a while. They may have forgotten to unmute, or might not feel comfortable speaking up.',
     check: ({ studentMutedMs }) => studentMutedMs >= 120_000,
   },
   {
     type: 'student_silence',
+    requiresStudent: true,
     message: 'Your student hasn\'t spoken in over 3 minutes. Try asking an open-ended question to re-engage them.',
     check: ({ studentSilenceMs }) => studentSilenceMs >= 180_000,
   },
   {
     type: 'low_eye_contact',
+    requiresStudent: true,
     message: 'Your student\'s eye contact has been low. They may be distracted or looking at something else.',
     check: ({ studentGaze, studentGazeDuration }) =>
       studentGaze < 40 && studentGazeDuration >= 30_000,
   },
   {
     type: 'tutor_low_eye_contact',
+    requiresStudent: false,
     message: 'Try making more eye contact with the camera. Looking at the camera helps your student feel connected.',
     check: ({ tutorGaze, tutorGazeDuration }) =>
       tutorGaze < 40 && tutorGazeDuration >= 30_000,
   },
   {
     type: 'talk_time_imbalance',
+    requiresStudent: true,
     message: 'You\'ve been doing most of the talking. Consider pausing to check for understanding.',
     check: ({ tutorTalkPercent, sessionMs }) =>
       tutorTalkPercent > 80 && sessionMs >= 300_000,
   },
   {
     type: 'energy_drop',
+    requiresStudent: true,
     message: 'Engagement energy seems to be dropping. A change of activity or short break might help.',
     check: ({ energyDrop }) => energyDrop >= 20,
   },
   {
     type: 'interruption_spike',
+    requiresStudent: true,
     message: 'There have been several interruptions recently. Try giving a bit more wait time before responding.',
     check: ({ recentInterruptions }) => recentInterruptions >= 3,
   },
   {
     type: 'tutor_interrupting',
+    requiresStudent: true,
     message: 'You\'ve interrupted the student a few times recently. Try giving more wait time after they speak.',
     check: ({ recentTutorInterruptions }) => recentTutorInterruptions >= 3,
   },
@@ -88,6 +96,9 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
   const bothSpeakingRef = useRef(false);
   const prevSpeakingRef = useRef({ tutor: false, student: false });
 
+  // Track whether we've ever received student data
+  const hasStudentRef = useRef(false);
+
   const formatTime = useCallback((s) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
@@ -101,6 +112,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
     const interval = setInterval(() => {
       const remote = remoteMetricsRef.current;
       const local = localMetricsRef.current;
+      if (remote) hasStudentRef.current = true;
 
       const now = Date.now();
       const studentSpeaking = remote?.isSpeaking ?? false;
@@ -216,6 +228,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
       };
 
       for (const rule of NUDGE_RULES) {
+        if (rule.requiresStudent && !hasStudentRef.current) continue;
         if (rule.check(context)) {
           const lastFired = lastFiredRef.current[rule.type] || 0;
           if (now - lastFired >= COOLDOWN_MS) {

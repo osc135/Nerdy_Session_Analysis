@@ -112,25 +112,31 @@ function TutorView() {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
+  // Track whether we've ever received student data
+  const hasStudentRef = useRef(false);
+  if (remoteMetrics) hasStudentRef.current = true;
+  const hasStudent = hasStudentRef.current;
+
   // Compute talk time as separate percentages of total session time
   const localAudio = getCumulativeMs();
   const remoteSpeakingMs = remoteMetrics?.speakingMs || 0;
   const sessionTotalMs = localAudio.totalMs || 1;
   const tutorTalkPercent = Math.round((localAudio.speakingMs / sessionTotalMs) * 100);
-  const studentTalkPercent = Math.round((remoteSpeakingMs / sessionTotalMs) * 100);
+  const studentTalkPercent = hasStudent ? Math.round((remoteSpeakingMs / sessionTotalMs) * 100) : null;
 
   // Mutual attention: both looking at camera at the same time
   const studentGaze = remoteMetrics?.gazeScore ?? 0;
-  const mutualAttention = gazeScore >= 50 && studentGaze >= 50;
+  const mutualAttention = hasStudent ? (gazeScore >= 50 && studentGaze >= 50) : null;
 
   const metrics = {
     tutorEyeContact: gazeScore,
     tutorTalkTime: tutorTalkPercent,
     tutorEnergy: Math.round(energy * 100),
-    studentEyeContact: studentGaze,
+    studentEyeContact: hasStudent ? studentGaze : null,
     studentTalkTime: studentTalkPercent,
-    studentEnergy: Math.round((remoteMetrics?.energy ?? 0) * 100),
+    studentEnergy: hasStudent ? Math.round((remoteMetrics?.energy ?? 0) * 100) : null,
     mutualAttention,
+    hasStudent,
   };
 
   // Nudge engine — monitors metrics and fires coaching suggestions

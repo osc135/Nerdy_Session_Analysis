@@ -1,33 +1,37 @@
 function MetricBar({ label, value, color }) {
+  const isNA = value === null || value === undefined;
   return (
     <div style={styles.metricRow}>
       <div style={styles.metricHeader}>
         <span style={styles.metricLabel}>{label}</span>
-        <span style={{ ...styles.metricValue, color }}>{value}%</span>
+        <span style={{ ...styles.metricValue, color: isNA ? '#4b5563' : color }}>
+          {isNA ? 'N/A' : `${value}%`}
+        </span>
       </div>
       <div style={styles.barTrack}>
-        <div style={{ ...styles.barFill, width: `${value}%`, background: color }} />
+        <div style={{ ...styles.barFill, width: isNA ? '0%' : `${value}%`, background: color }} />
       </div>
     </div>
   );
 }
 
 function MutualAttentionIndicator({ active }) {
+  const isNA = active === null || active === undefined;
   return (
     <div style={styles.mutualAttention}>
       <div style={styles.metricHeader}>
         <span style={styles.metricLabel}>Mutual Attention</span>
         <span style={{
           ...styles.metricValue,
-          color: active ? '#6ee7a0' : '#6b7280',
+          color: isNA ? '#4b5563' : active ? '#6ee7a0' : '#6b7280',
         }}>
-          {active ? 'Active' : 'No'}
+          {isNA ? 'N/A' : active ? 'Active' : 'No'}
         </span>
       </div>
       <div style={{
         ...styles.mutualDot,
-        background: active ? '#6ee7a0' : '#252a33',
-        boxShadow: active ? '0 0 10px #6ee7a044' : 'none',
+        background: isNA ? '#1e232d' : active ? '#6ee7a0' : '#252a33',
+        boxShadow: !isNA && active ? '0 0 10px #6ee7a044' : 'none',
       }} />
     </div>
   );
@@ -36,8 +40,8 @@ function MutualAttentionIndicator({ active }) {
 function MetricsSidebar({ metrics }) {
   const {
     tutorEyeContact = 0, tutorTalkTime = 0, tutorEnergy = 0,
-    studentEyeContact = 0, studentTalkTime = 0, studentEnergy = 0,
-    mutualAttention = false,
+    studentEyeContact, studentTalkTime, studentEnergy,
+    mutualAttention, hasStudent = false,
   } = metrics || {};
 
   return (
@@ -52,7 +56,9 @@ function MetricsSidebar({ metrics }) {
       </div>
 
       <div style={styles.section}>
-        <span style={styles.sectionLabel}>Student</span>
+        <span style={styles.sectionLabel}>
+          Student{!hasStudent ? ' (not connected)' : ''}
+        </span>
         <MetricBar label="Eye Contact" value={studentEyeContact} color="#6ee7a0" />
         <MetricBar label="Talk Time" value={studentTalkTime} color="#7ab8e0" />
         <MetricBar label="Energy" value={studentEnergy} color="#a78bde" />

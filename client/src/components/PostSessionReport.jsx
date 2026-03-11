@@ -69,7 +69,7 @@ function PostSessionReport() {
     );
   }
 
-  const { summary, keyMoments, nudgeLog, recommendations } = report;
+  const { summary, keyMoments, nudgeLog, recommendations, hasStudent } = report;
   const scoreColor = summary.engagementScore >= 70 ? '#6ee7a0'
     : summary.engagementScore >= 40 ? '#d4a04a' : '#f08080';
 
@@ -101,76 +101,90 @@ function PostSessionReport() {
             <MetricCard label="Eye Contact" value={summary.eyeContact.tutor} unit="%" color="#e8985a" />
             <MetricCard label="Talk Time" value={summary.talkTime.tutor} unit="%" color="#e8985a" />
             <MetricCard label="Energy" value={summary.energy.tutor} unit="%" color="#c4a5e0" />
-            <MetricCard
+            {hasStudent && <MetricCard
               label="Interruptions Made"
               value={summary.interruptions.tutorInitiated}
               unit=""
               color="#e8985a"
-            />
+            />}
           </div>
         </div>
 
         {/* Student Metrics */}
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Student</h3>
-          <div style={styles.cardGrid}>
-            <MetricCard label="Eye Contact" value={summary.eyeContact.student} unit="%" color="#6ee7a0" />
-            <MetricCard label="Talk Time" value={summary.talkTime.student} unit="%" color="#7ab8e0" />
-            <MetricCard label="Energy" value={summary.energy.student} unit="%" color="#a78bde" />
-            <MetricCard
-              label="Interruptions Made"
-              value={summary.interruptions.studentInitiated}
-              unit=""
-              color="#7ab8e0"
-            />
-          </div>
+          {hasStudent ? (
+            <div style={styles.cardGrid}>
+              <MetricCard label="Eye Contact" value={summary.eyeContact.student} unit="%" color="#6ee7a0" />
+              <MetricCard label="Talk Time" value={summary.talkTime.student} unit="%" color="#7ab8e0" />
+              <MetricCard label="Energy" value={summary.energy.student} unit="%" color="#a78bde" />
+              <MetricCard
+                label="Interruptions Made"
+                value={summary.interruptions.studentInitiated}
+                unit=""
+                color="#7ab8e0"
+              />
+            </div>
+          ) : (
+            <div style={styles.card}>
+              <p style={styles.naText}>No student joined this session</p>
+            </div>
+          )}
         </div>
 
         {/* Session Metrics */}
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Session</h3>
           <div style={styles.cardGrid}>
-            <MetricCard
+            {hasStudent && <MetricCard
               label="Mutual Attention"
               value={summary.mutualAttention.percent}
               unit="%"
               color="#6ee7a0"
-            />
-            <MetricCard
+            />}
+            {hasStudent && <MetricCard
               label="Total Interruptions"
               value={summary.interruptions.total}
               unit={` (${summary.interruptions.perMinute}/min)`}
               color="#d4a04a"
+            />}
+            <MetricCard
+              label="Duration"
+              value={report.durationMinutes}
+              unit=" min"
+              color="#9ca3af"
             />
           </div>
         </div>
 
         {/* Talk Time Balance */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Talk Time Balance</h3>
-          <div style={styles.card}>
-            <div style={styles.balanceLabels}>
-              <span style={styles.balanceLabelLeft}>Tutor {summary.talkTime.tutor}%</span>
-              <span style={styles.balanceLabelRight}>Student {summary.talkTime.student}%</span>
-            </div>
-            <div style={styles.balanceTrack}>
-              <div style={{
-                height: '100%',
-                width: `${summary.talkTime.tutor}%`,
-                background: '#e8985a',
-                borderRadius: summary.talkTime.student === 0 ? '4px' : '4px 0 0 4px',
-                opacity: 0.8,
-              }} />
-              <div style={{
-                height: '100%',
-                width: `${summary.talkTime.student}%`,
-                background: '#7ab8e0',
-                borderRadius: summary.talkTime.tutor === 0 ? '4px' : '0 4px 4px 0',
-                opacity: 0.8,
-              }} />
+        {hasStudent && (
+          <div style={styles.section}>
+            <h3 style={styles.sectionTitle}>Talk Time Balance</h3>
+            <div style={styles.card}>
+              <div style={styles.balanceLabels}>
+                <span style={styles.balanceLabelLeft}>Tutor {summary.talkTime.tutor}%</span>
+                <span style={styles.balanceLabelRight}>Student {summary.talkTime.student}%</span>
+              </div>
+              <div style={styles.balanceTrack}>
+                <div style={{
+                  height: '100%',
+                  width: `${summary.talkTime.tutor}%`,
+                  background: '#e8985a',
+                  borderRadius: summary.talkTime.student === 0 ? '4px' : '4px 0 0 4px',
+                  opacity: 0.8,
+                }} />
+                <div style={{
+                  height: '100%',
+                  width: `${summary.talkTime.student}%`,
+                  background: '#7ab8e0',
+                  borderRadius: summary.talkTime.tutor === 0 ? '4px' : '0 4px 4px 0',
+                  opacity: 0.8,
+                }} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Key Moments */}
         {keyMoments.length > 0 && (
@@ -498,6 +512,12 @@ const styles = {
     fontSize: '0.85rem',
     color: '#9ca3af',
     lineHeight: 1.45,
+  },
+  naText: {
+    margin: 0,
+    color: '#4b5563',
+    fontSize: '0.88rem',
+    fontStyle: 'italic',
   },
 };
 

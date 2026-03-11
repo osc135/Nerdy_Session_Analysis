@@ -7,21 +7,27 @@ export function generateReport(sessionData) {
   const studentSnapshots = student?.snapshots || [];
   const duration = Math.max(tutor?.duration || 0, student?.duration || 0);
 
+  // Detect if student data exists — check if any snapshot has student gaze/speaking data
+  const hasStudent = tutorSnapshots.some(s =>
+    s.student?.gazeScore !== undefined || s.student?.isSpeaking !== undefined
+  ) || studentSnapshots.length > 0;
+
   const talkTime = computeTalkTimeSummary(tutorSnapshots, studentSnapshots);
   const eyeContact = computeEyeContactSummary(tutorSnapshots, studentSnapshots);
   const interruptions = computeInterruptionSummary(tutorSnapshots);
   const energy = computeEnergySummary(tutorSnapshots, studentSnapshots);
   const mutualAttention = computeMutualAttention(tutorSnapshots);
-  const engagementScore = computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention });
+  const engagementScore = computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent });
 
   return {
     sessionId,
     duration,
     durationMinutes: Math.round(duration / 60000),
+    hasStudent,
     summary: { talkTime, eyeContact, interruptions, energy, mutualAttention, engagementScore },
     keyMoments: findKeyMoments(tutorSnapshots, studentSnapshots),
     nudgeLog: tutor?.nudges || [],
-    recommendations: generateRecommendations({ talkTime, eyeContact, interruptions, energy, mutualAttention }, tutor?.nudges || []),
+    recommendations: generateRecommendations({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent }, tutor?.nudges || []),
   };
 }
 
@@ -232,7 +238,16 @@ function findKeyMoments(tutorSnaps) {
 
 // ─── Tier 3: Composite / derived ────────────────────────────────────
 
-function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention }) {
+function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent }) {
+  if (!hasStudent) {
+    // Tutor-only session: score based on tutor metrics only
+    const tutorGazeScore = eyeContact.tutor / 100;
+    const tutorEnergyScore = energy.tutor / 100;
+    if (tutorGazeScore === 0 && tutorEnergyScore === 0) return 0;
+    const weighted = tutorGazeScore * 0.5 + tutorEnergyScore * 0.5;
+    return Math.round(weighted * 100);
+  }
+
   if (eyeContact.student === 0 && energy.student === 0) return 0;
 
   // Student eye contact (weight 0.2)
@@ -266,14 +281,7 @@ function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, m
 
 function generateRecommendations(summaries, nudges) {
   const recs = [];
-  const { talkTime, eyeContact, interruptions, energy, mutualAttention } = summaries;
-
-  if (talkTime.tutor > 70) {
-    recs.push({
-      text: 'You did most of the talking this session. Try asking more open-ended questions to involve the student.',
-      priority: 'high',
-    });
-  }
+  const { talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent } = summaries;
 
   if (eyeContact.tutor < 50) {
     recs.push({
@@ -282,51 +290,60 @@ function generateRecommendations(summaries, nudges) {
     });
   }
 
-  if (eyeContact.student < 50) {
+  if (energy.tutor < 30) {
     recs.push({
-      text: 'Student eye contact was low. Consider using screen sharing or visual aids to keep their focus.',
-      priority: 'high',
-    });
-  }
-
-  if ((mutualAttention?.percent || 0) < 30) {
-    recs.push({
-      text: 'Mutual attention was low — you and the student rarely looked at each other at the same time. Try checking in more frequently.',
+      text: 'Your energy was low this session. Varying your tone and pace can help keep both you and the student engaged.',
       priority: 'medium',
     });
   }
 
-  if (interruptions.tutorInitiated > interruptions.studentInitiated && interruptions.tutorInitiated >= 3) {
-    recs.push({
-      text: 'You interrupted the student more often than they interrupted you. Give more wait time after they start speaking.',
-      priority: 'high',
-    });
+  if (hasStudent) {
+    if (talkTime.tutor > 70) {
+      recs.push({
+        text: 'You did most of the talking this session. Try asking more open-ended questions to involve the student.',
+        priority: 'high',
+      });
+    }
+
+    if (eyeContact.student < 50) {
+      recs.push({
+        text: 'Student eye contact was low. Consider using screen sharing or visual aids to keep their focus.',
+        priority: 'high',
+      });
+    }
+
+    if ((mutualAttention?.percent || 0) < 30) {
+      recs.push({
+        text: 'Mutual attention was low — you and the student rarely looked at each other at the same time. Try checking in more frequently.',
+        priority: 'medium',
+      });
+    }
+
+    if (interruptions.tutorInitiated > interruptions.studentInitiated && interruptions.tutorInitiated >= 3) {
+      recs.push({
+        text: 'You interrupted the student more often than they interrupted you. Give more wait time after they start speaking.',
+        priority: 'high',
+      });
+    }
+
+    if (interruptions.perMinute > 1) {
+      recs.push({
+        text: 'There were frequent interruptions. Try giving more wait time after asking questions before responding.',
+        priority: 'medium',
+      });
+    }
+
+    if (energy.student < 30) {
+      recs.push({
+        text: 'Student energy was low throughout. Consider shorter sessions or more interactive activities.',
+        priority: 'medium',
+      });
+    }
   }
 
   if (nudges.length > 5) {
     recs.push({
       text: 'Several coaching suggestions were triggered. Review the nudge log and practice the recommended techniques.',
-      priority: 'medium',
-    });
-  }
-
-  if (interruptions.perMinute > 1) {
-    recs.push({
-      text: 'There were frequent interruptions. Try giving more wait time after asking questions before responding.',
-      priority: 'medium',
-    });
-  }
-
-  if (energy.student < 30) {
-    recs.push({
-      text: 'Student energy was low throughout. Consider shorter sessions or more interactive activities.',
-      priority: 'medium',
-    });
-  }
-
-  if (energy.tutor < 30) {
-    recs.push({
-      text: 'Your energy was low this session. Varying your tone and pace can help keep both you and the student engaged.',
       priority: 'medium',
     });
   }
