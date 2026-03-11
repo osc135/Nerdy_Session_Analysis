@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 // Preload MediaPipe assets while user reads consent screen
 function usePreloadMediaPipe() {
@@ -32,13 +33,16 @@ const SENSITIVITY_LEVELS = [
 
 function ConsentScreen() {
   usePreloadMediaPipe();
+  const { user } = useAuth();
+  const isTutor = user?.role === 'tutor';
+
   const [agreed, setAgreed] = useState(false);
   const [sessionCode, setSessionCode] = useState('');
   const [sessionType, setSessionType] = useState('lecture');
   const [sensitivity, setSensitivity] = useState('medium');
   const navigate = useNavigate();
 
-  const handleTutorJoin = () => {
+  const handleTutorStart = () => {
     if (!agreed) return;
     const sessionId = crypto.randomUUID().slice(0, 8);
     navigate(`/tutor/${sessionId}?type=${sessionType}&sensitivity=${sensitivity}`);
@@ -63,7 +67,10 @@ function ConsentScreen() {
             <li><strong>What we analyze:</strong> Facial landmarks for eye contact and energy, voice activity for speaking time — all processed locally in your browser.</li>
             <li><strong>What we share:</strong> Only metric scores (numbers like "eye contact: 72%") are shared between participants. No raw video or audio ever leaves your browser.</li>
             <li><strong>What we store:</strong> Session metric summaries are saved on the server for post-session reports and trend analysis. No video or audio is recorded.</li>
-            <li><strong>Who sees what:</strong> Tutors see full analytics and coaching nudges. Students see their own personal engagement summary.</li>
+            {isTutor
+              ? <li><strong>Who sees what:</strong> You'll see full analytics and coaching nudges. Your student sees their own personal engagement summary only.</li>
+              : <li><strong>Who sees what:</strong> You'll see your personal engagement summary. Your tutor sees full analytics and coaching nudges.</li>
+            }
             <li><strong>Your control:</strong> You can end the session at any time. Analysis stops immediately when you leave.</li>
           </ul>
         </div>
@@ -77,91 +84,93 @@ function ConsentScreen() {
           <span>I understand and consent to real-time engagement analysis during this session.</span>
         </label>
 
-        <div style={styles.sessionTypeBox}>
-          <h3 style={styles.sessionTypeTitle}>Session Type</h3>
-          <div style={styles.typeOptions}>
-            {SESSION_TYPES.map(t => (
-              <label
-                key={t.value}
-                style={{
-                  ...styles.typeOption,
-                  borderColor: sessionType === t.value ? '#2d7a4a' : '#252a33',
-                  background: sessionType === t.value ? '#2d7a4a18' : 'transparent',
-                }}
+        {isTutor ? (
+          <>
+            <div style={styles.sessionTypeBox}>
+              <h3 style={styles.sessionTypeTitle}>Session Type</h3>
+              <div style={styles.typeOptions}>
+                {SESSION_TYPES.map(t => (
+                  <label
+                    key={t.value}
+                    style={{
+                      ...styles.typeOption,
+                      borderColor: sessionType === t.value ? '#2d7a4a' : '#252a33',
+                      background: sessionType === t.value ? '#2d7a4a18' : 'transparent',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="sessionType"
+                      value={t.value}
+                      checked={sessionType === t.value}
+                      onChange={() => setSessionType(t.value)}
+                      style={{ display: 'none' }}
+                    />
+                    <span style={styles.typeLabel}>{t.label}</span>
+                    <span style={styles.typeDesc}>{t.desc}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={styles.sessionTypeBox}>
+              <h3 style={styles.sessionTypeTitle}>Coaching Sensitivity</h3>
+              <div style={styles.sensitivityOptions}>
+                {SENSITIVITY_LEVELS.map(s => (
+                  <label
+                    key={s.value}
+                    style={{
+                      ...styles.sensitivityOption,
+                      borderColor: sensitivity === s.value ? '#2d7a4a' : '#252a33',
+                      background: sensitivity === s.value ? '#2d7a4a18' : 'transparent',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="sensitivity"
+                      value={s.value}
+                      checked={sensitivity === s.value}
+                      onChange={() => setSensitivity(s.value)}
+                      style={{ display: 'none' }}
+                    />
+                    <span style={styles.typeLabel}>{s.label}</span>
+                    <span style={styles.typeDesc}>{s.desc}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <button
+              style={{ ...styles.button, ...styles.tutorButton, opacity: agreed ? 1 : 0.4 }}
+              onClick={handleTutorStart}
+              disabled={!agreed}
+            >
+              Start Session
+            </button>
+          </>
+        ) : (
+          <div style={styles.studentSection}>
+            <h3 style={styles.sessionTypeTitle}>Join a Session</h3>
+            <p style={styles.studentHint}>Enter the session code your tutor gave you.</p>
+            <div style={styles.studentJoin}>
+              <input
+                type="text"
+                placeholder="Session code"
+                value={sessionCode}
+                onChange={(e) => setSessionCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleStudentJoin()}
+                style={styles.codeInput}
+              />
+              <button
+                style={{ ...styles.button, ...styles.studentButton, opacity: agreed && sessionCode.trim() ? 1 : 0.4 }}
+                onClick={handleStudentJoin}
+                disabled={!agreed || !sessionCode.trim()}
               >
-                <input
-                  type="radio"
-                  name="sessionType"
-                  value={t.value}
-                  checked={sessionType === t.value}
-                  onChange={() => setSessionType(t.value)}
-                  style={{ display: 'none' }}
-                />
-                <span style={styles.typeLabel}>{t.label}</span>
-                <span style={styles.typeDesc}>{t.desc}</span>
-              </label>
-            ))}
+                Join Session
+              </button>
+            </div>
           </div>
-        </div>
-
-        <div style={styles.sessionTypeBox}>
-          <h3 style={styles.sessionTypeTitle}>Coaching Sensitivity</h3>
-          <div style={styles.sensitivityOptions}>
-            {SENSITIVITY_LEVELS.map(s => (
-              <label
-                key={s.value}
-                style={{
-                  ...styles.sensitivityOption,
-                  borderColor: sensitivity === s.value ? '#2d7a4a' : '#252a33',
-                  background: sensitivity === s.value ? '#2d7a4a18' : 'transparent',
-                }}
-              >
-                <input
-                  type="radio"
-                  name="sensitivity"
-                  value={s.value}
-                  checked={sensitivity === s.value}
-                  onChange={() => setSensitivity(s.value)}
-                  style={{ display: 'none' }}
-                />
-                <span style={styles.typeLabel}>{s.label}</span>
-                <span style={styles.typeDesc}>{s.desc}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div style={styles.buttons}>
-          <button
-            style={{ ...styles.button, ...styles.tutorButton, opacity: agreed ? 1 : 0.4 }}
-            onClick={handleTutorJoin}
-            disabled={!agreed}
-          >
-            Join as Tutor
-          </button>
-        </div>
-
-        <div style={styles.divider}>
-          <span style={styles.dividerText}>or join an existing session</span>
-        </div>
-
-        <div style={styles.studentJoin}>
-          <input
-            type="text"
-            placeholder="Enter session code"
-            value={sessionCode}
-            onChange={(e) => setSessionCode(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleStudentJoin()}
-            style={styles.codeInput}
-          />
-          <button
-            style={{ ...styles.button, ...styles.studentButton, opacity: agreed && sessionCode.trim() ? 1 : 0.4 }}
-            onClick={handleStudentJoin}
-            disabled={!agreed || !sessionCode.trim()}
-          >
-            Join as Student
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -226,45 +235,6 @@ const styles = {
     fontSize: '0.88rem',
     color: '#9ca3af',
   },
-  buttons: {
-    display: 'flex',
-    gap: '1rem',
-  },
-  button: {
-    flex: 1,
-    padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
-    border: 'none',
-    fontSize: '0.95rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'opacity 0.2s',
-  },
-  tutorButton: {
-    background: '#2d7a4a',
-    color: 'white',
-  },
-  studentButton: {
-    background: '#2b5ea6',
-    color: 'white',
-  },
-  divider: {
-    display: 'flex',
-    alignItems: 'center',
-    margin: '1.5rem 0',
-    gap: '1rem',
-  },
-  dividerText: {
-    color: '#6b7280',
-    fontSize: '0.82rem',
-    whiteSpace: 'nowrap',
-    width: '100%',
-    textAlign: 'center',
-  },
-  studentJoin: {
-    display: 'flex',
-    gap: '1rem',
-  },
   sessionTypeBox: {
     marginBottom: '1.5rem',
   },
@@ -313,6 +283,37 @@ const styles = {
     cursor: 'pointer',
     transition: 'border-color 0.15s, background 0.15s',
     textAlign: 'center',
+  },
+  button: {
+    padding: '0.75rem 1.5rem',
+    borderRadius: '8px',
+    border: 'none',
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'opacity 0.2s',
+    width: '100%',
+  },
+  tutorButton: {
+    background: '#2d7a4a',
+    color: 'white',
+  },
+  studentButton: {
+    background: '#2b5ea6',
+    color: 'white',
+    width: 'auto',
+  },
+  studentSection: {
+    marginTop: '0.5rem',
+  },
+  studentHint: {
+    color: '#6b7280',
+    fontSize: '0.85rem',
+    marginBottom: '1rem',
+  },
+  studentJoin: {
+    display: 'flex',
+    gap: '1rem',
   },
   codeInput: {
     flex: 1,

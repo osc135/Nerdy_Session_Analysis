@@ -19,6 +19,7 @@ export async function initDB() {
         email VARCHAR(255) UNIQUE NOT NULL,
         name VARCHAR(255) NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        role ENUM('tutor', 'student') NOT NULL DEFAULT 'tutor',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -43,6 +44,11 @@ export async function initDB() {
     // Ensure unique index on session_code (safe to run if already exists)
     await conn.query(`
       ALTER TABLE sessions ADD UNIQUE INDEX unique_session_code (session_code)
+    `).catch(() => {});
+
+    // Add role column to existing users table if it doesn't exist
+    await conn.query(`
+      ALTER TABLE users ADD COLUMN role ENUM('tutor', 'student') NOT NULL DEFAULT 'tutor'
     `).catch(() => {});
 
     console.log('Database tables initialized');

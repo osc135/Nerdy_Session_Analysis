@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'nerdy-dev-secret-change-in-prod';
 
 function signToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name },
+    { id: user.id, email: user.email, name: user.name, role: user.role },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
@@ -16,10 +16,14 @@ function signToken(user) {
 
 // --- Email/Password Signup ---
 router.post('/signup', async (req, res) => {
-  const { email, password, name } = req.body;
+  const { email, password, name, role } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Email, password, and name are required' });
   }
+  if (role && !['tutor', 'student'].includes(role)) {
+    return res.status(400).json({ error: 'Role must be "tutor" or "student"' });
+  }
+  const userRole = role || 'tutor';
 
   try {
     const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
@@ -29,11 +33,11 @@ router.post('/signup', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
-      'INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)',
-      [email, name, passwordHash]
+      'INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)',
+      [email, name, passwordHash, userRole]
     );
 
-    const user = { id: result.insertId, email, name };
+    const user = { id: result.insertId, email, name, role: userRole };
     const token = signToken(user);
     res.json({ token, user });
   } catch (err) {
@@ -62,7 +66,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = signToken(user);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
@@ -79,7 +83,7 @@ router.get('/me', async (req, res) => {
   try {
     const payload = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
     const [rows] = await pool.query(
-      'SELECT id, email, name FROM users WHERE id = ?',
+      'SELECT id, email, name, role FROM users WHERE id = ?',
       [payload.id]
     );
     if (rows.length === 0) {

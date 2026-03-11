@@ -64,15 +64,30 @@ function Dashboard() {
 
       <div style={styles.content}>
         <div style={styles.welcomeCard}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <span style={{
+              fontSize: '0.68rem', fontWeight: 600, textTransform: 'uppercase',
+              padding: '3px 10px', borderRadius: '10px', letterSpacing: '0.03em',
+              background: user.role === 'tutor' ? '#2d7a4a22' : '#2b5ea622',
+              color: user.role === 'tutor' ? '#6ee7a0' : '#7ab8e0',
+            }}>{user.role}</span>
+          </div>
           <h2 style={styles.welcomeTitle}>Welcome, {user.name.split(' ')[0]}</h2>
-          <p style={styles.welcomeText}>Start a new tutoring session or review your past sessions below.</p>
-          <button style={styles.startBtn} onClick={() => navigate('/session')}>
-            Start New Session
+          <p style={styles.welcomeText}>
+            {user.role === 'tutor'
+              ? 'Start a new tutoring session or review your past sessions below.'
+              : 'Join your tutor\'s session or review your past sessions below.'}
+          </p>
+          <button
+            style={{ ...styles.startBtn, background: user.role === 'tutor' ? '#2d7a4a' : '#2b5ea6' }}
+            onClick={() => navigate('/session')}
+          >
+            {user.role === 'tutor' ? 'Start New Session' : 'Join a Session'}
           </button>
         </div>
 
-        {/* Trend gauges */}
-        {trends && (
+        {/* Trend gauges — tutor only */}
+        {trends && user.role === 'tutor' && (
           <div style={styles.trendsSection}>
             <div style={styles.trendsHeader}>
               <h3 style={styles.sectionTitle}>Your Trends</h3>
