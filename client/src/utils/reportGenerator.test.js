@@ -507,6 +507,98 @@ describe('generateReport – recommendations', () => {
   });
 });
 
+// ─── Attention drift summary ────────────────────────────────────────
+
+describe('generateReport – attentionDrift', () => {
+  it('computes average, peakDrift, and driftPercent from snapshots', () => {
+    const data = makeSessionData({
+      snapshotFn: (elapsed) => snap(elapsed,
+        // Student: low gaze (20), low energy (0.2), not speaking → high drift
+        { gazeScore: 80, energy: 0.5, attentionDrift: 70 },
+        { gazeScore: 20, energy: 0.2, isSpeaking: false },
+      ),
+    });
+
+    const report = generateReport(data);
+    const { attentionDrift } = report.summary;
+
+    expect(attentionDrift.average).toBe(70);
+    expect(attentionDrift.peakDrift).toBe(70);
+    expect(attentionDrift.driftPercent).toBe(100); // all snapshots >= 65
+  });
+
+  it('returns zeros when no snapshots have drift data', () => {
+    const data = makeSessionData({
+      snapshotFn: (elapsed) => snap(elapsed,
+        { gazeScore: 80, energy: 0.5 }, // no attentionDrift field
+        { gazeScore: 80, energy: 0.5 },
+      ),
+    });
+
+    const report = generateReport(data);
+    const { attentionDrift } = report.summary;
+
+    expect(attentionDrift.average).toBe(0);
+    expect(attentionDrift.peakDrift).toBe(0);
+    expect(attentionDrift.driftPercent).toBe(0);
+  });
+
+  it('averages only non-null drift values (ignores nulls)', () => {
+    const data = makeSessionData({
+      duration: 20_000, // 10 snapshots at 2s
+      snapshotFn: (elapsed, i) => {
+        // First 5 snapshots: no drift. Last 5: drift = 80
+        const drift = i >= 5 ? 80 : undefined;
+        return snap(elapsed,
+          { gazeScore: 80, energy: 0.5, attentionDrift: drift },
+          { gazeScore: 30, energy: 0.2 },
+        );
+      },
+    });
+
+    const report = generateReport(data);
+    // Average should be 80 (only counts the 5 non-null values), not 40
+    expect(report.summary.attentionDrift.average).toBe(80);
+  });
+
+  it('detects sustained drift as a key moment', () => {
+    const data = makeSessionData({
+      duration: 300_000, // 5 min
+      snapshotFn: (elapsed, i) => {
+        // Drift >= 65 for snapshots 50-70 (40s at 2s interval)
+        const drifting = i >= 50 && i <= 70;
+        return snap(elapsed,
+          { gazeScore: 80, energy: 0.5, attentionDrift: drifting ? 75 : 30 },
+          { gazeScore: drifting ? 20 : 80, energy: drifting ? 0.2 : 0.5 },
+        );
+      },
+    });
+
+    const report = generateReport(data);
+    const driftMoments = report.keyMoments.filter(m => m.type === 'attention_drift');
+
+    expect(driftMoments.length).toBeGreaterThanOrEqual(1);
+    expect(driftMoments[0].description).toContain('disengagement');
+  });
+
+  it('recommends interactive activities when driftPercent > 30%', () => {
+    const data = makeSessionData({
+      snapshotFn: (elapsed) => snap(elapsed,
+        { gazeScore: 80, energy: 0.5, attentionDrift: 75 }, // all snapshots drifting
+        { gazeScore: 20, energy: 0.2, isSpeaking: false },
+      ),
+    });
+
+    const report = generateReport(data);
+    const rec = report.recommendations.find(r =>
+      r.text.toLowerCase().includes('disengagement')
+    );
+
+    expect(rec).toBeDefined();
+    expect(rec.priority).toBe('high');
+  });
+});
+
 // ─── Edge cases ─────────────────────────────────────────────────────
 
 describe('generateReport – edge cases', () => {

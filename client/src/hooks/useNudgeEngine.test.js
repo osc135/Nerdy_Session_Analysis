@@ -458,6 +458,80 @@ describe('useNudgeEngine – interruption_spike', () => {
   });
 });
 
+// ─── Mutual disengagement ──────────────────────────────────────────
+
+describe('useNudgeEngine – mutual_disengagement', () => {
+  it('fires when student has low gaze + low energy + silence for >= 20 seconds', () => {
+    const props = makeProps({
+      remoteMetrics: { isSpeaking: false, gazeScore: 20, energy: 0.2, speakingMs: 0 },
+    });
+
+    const { result } = renderHook(() => useNudgeEngine(props));
+
+    advanceTime(22_000);
+
+    const driftNudge = result.current.find(n => n.type === 'mutual_disengagement');
+    expect(driftNudge).toBeDefined();
+    expect(driftNudge.message).toContain('disengagement');
+  });
+
+  it('does NOT fire before 20 seconds', () => {
+    const props = makeProps({
+      remoteMetrics: { isSpeaking: false, gazeScore: 20, energy: 0.2, speakingMs: 0 },
+    });
+
+    const { result } = renderHook(() => useNudgeEngine(props));
+
+    advanceTime(18_000);
+
+    const driftNudge = result.current.find(n => n.type === 'mutual_disengagement');
+    expect(driftNudge).toBeUndefined();
+  });
+
+  it('does NOT fire when only some conditions are met (gaze OK)', () => {
+    const props = makeProps({
+      // Gaze is fine (>= 40), energy low, not speaking
+      remoteMetrics: { isSpeaking: false, gazeScore: 60, energy: 0.2, speakingMs: 0 },
+    });
+
+    const { result } = renderHook(() => useNudgeEngine(props));
+
+    advanceTime(25_000);
+
+    const driftNudge = result.current.find(n => n.type === 'mutual_disengagement');
+    expect(driftNudge).toBeUndefined();
+  });
+
+  it('resets when student re-engages', () => {
+    const props = makeProps({
+      remoteMetrics: { isSpeaking: false, gazeScore: 20, energy: 0.2, speakingMs: 0 },
+    });
+
+    const { result, rerender } = renderHook(
+      (p) => useNudgeEngine(p),
+      { initialProps: props }
+    );
+
+    // 15 seconds of disengagement (not enough)
+    advanceTime(15_000);
+
+    // Student starts speaking — breaks the drift
+    rerender(makeProps({
+      remoteMetrics: { isSpeaking: true, gazeScore: 20, energy: 0.2, speakingMs: 1000 },
+    }));
+    advanceTime(CHECK_INTERVAL);
+
+    // Back to disengaged for another 15 seconds (not enough since reset)
+    rerender(makeProps({
+      remoteMetrics: { isSpeaking: false, gazeScore: 20, energy: 0.2, speakingMs: 1000 },
+    }));
+    advanceTime(15_000);
+
+    const driftNudge = result.current.find(n => n.type === 'mutual_disengagement');
+    expect(driftNudge).toBeUndefined();
+  });
+});
+
 // ─── Cooldown ───────────────────────────────────────────────────────
 
 describe('useNudgeEngine – cooldown', () => {

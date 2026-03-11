@@ -120,20 +120,24 @@ function computeAttentionDriftSummary(tutorSnaps) {
 
   let sum = 0;
   let peak = 0;
+  let count = 0;
   let driftFrames = 0;
 
   for (const s of tutorSnaps) {
     const drift = s.tutor?.attentionDrift;
     if (drift == null) continue;
+    count++;
     sum += drift;
     if (drift > peak) peak = drift;
     if (drift >= 65) driftFrames++;
   }
 
+  if (count === 0) return { average: 0, peakDrift: 0, driftPercent: 0 };
+
   return {
-    average: Math.round(sum / tutorSnaps.length),
+    average: Math.round(sum / count),
     peakDrift: peak,
-    driftPercent: Math.round((driftFrames / tutorSnaps.length) * 100),
+    driftPercent: Math.round((driftFrames / count) * 100),
   };
 }
 

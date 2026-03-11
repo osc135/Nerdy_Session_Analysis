@@ -264,15 +264,9 @@ function PostSessionReport() {
                   <span style={styles.momentTime}>{formatMs(moment.elapsed)}</span>
                   <span style={{
                     ...styles.momentBadge,
-                    background: moment.type === 'attention_drift' ? '#d4a04a22'
-                      : moment.type.includes('attention') ? '#f0808022' : '#d4a04a22',
-                    color: moment.type === 'attention_drift' ? '#d4a04a'
-                      : moment.type.includes('attention') ? '#f08080' : '#d4a04a',
+                    ...momentBadgeStyles[moment.type] || momentBadgeStyles._default,
                   }}>
-                    {moment.type === 'attention_drop' ? 'Student Attention'
-                      : moment.type === 'tutor_attention_drop' ? 'Tutor Attention'
-                      : moment.type === 'attention_drift' ? 'Attention Drift'
-                      : 'Silence'}
+                    {momentLabels[moment.type] || 'Unknown'}
                   </span>
                   <span style={styles.momentDesc}>{moment.description}</span>
                 </div>
@@ -357,6 +351,21 @@ function formatMs(ms) {
   const s = totalSec % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
+
+const momentLabels = {
+  attention_drop: 'Student Attention',
+  tutor_attention_drop: 'Tutor Attention',
+  attention_drift: 'Attention Drift',
+  long_silence: 'Silence',
+};
+
+const momentBadgeStyles = {
+  attention_drop: { background: '#f0808022', color: '#f08080' },
+  tutor_attention_drop: { background: '#f0808022', color: '#f08080' },
+  attention_drift: { background: '#d4a04a22', color: '#d4a04a' },
+  long_silence: { background: '#d4a04a22', color: '#d4a04a' },
+  _default: { background: '#d4a04a22', color: '#d4a04a' },
+};
 
 const styles = {
   container: {
