@@ -223,10 +223,9 @@ function TutorView() {
       {/* Gaze debug overlay — remove after tuning */}
       {gazeDebug && (
         <div style={styles.debugOverlay}>
-          <div>mode: {gazeDebug.mode}</div>
+          <div>contact: {gazeDebug.contact} | conf: {gazeDebug.confidence}</div>
           <div>yaw: {gazeDebug.yaw}° pitch: {gazeDebug.pitch}°</div>
-          <div>maxAway: {gazeDebug.maxAway} raw: {gazeDebug.rawConf}</div>
-          <div>conf: {gazeDebug.confidence} contact: {gazeDebug.contact}</div>
+          <div>iris devX: {gazeDebug.irisX} devY: {gazeDebug.irisY}</div>
         </div>
       )}
     </div>

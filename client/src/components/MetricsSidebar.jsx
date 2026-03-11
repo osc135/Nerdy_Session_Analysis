@@ -15,24 +15,44 @@ function MetricBar({ label, value, color }) {
   );
 }
 
+function GazeIndicator({ label, value, activeColor }) {
+  const isNA = value === null || value === undefined;
+  // value is 0-100 gaze score; treat >= 50 as "looking"
+  const looking = !isNA && value >= 50;
+  return (
+    <div style={styles.gazeRow}>
+      <div style={{
+        ...styles.gazeDot,
+        background: isNA ? '#1e232d' : looking ? activeColor : '#252a33',
+        boxShadow: looking ? `0 0 8px ${activeColor}66` : 'none',
+      }} />
+      <span style={styles.metricLabel}>{label}</span>
+      <span style={{
+        ...styles.gazeStatus,
+        color: isNA ? '#4b5563' : looking ? activeColor : '#6b7280',
+      }}>
+        {isNA ? 'N/A' : looking ? 'Looking' : 'Away'}
+      </span>
+    </div>
+  );
+}
+
 function MutualAttentionIndicator({ active }) {
   const isNA = active === null || active === undefined;
   return (
-    <div style={styles.mutualAttention}>
-      <div style={styles.metricHeader}>
-        <span style={styles.metricLabel}>Mutual Attention</span>
-        <span style={{
-          ...styles.metricValue,
-          color: isNA ? '#4b5563' : active ? '#6ee7a0' : '#6b7280',
-        }}>
-          {isNA ? 'N/A' : active ? 'Active' : 'No'}
-        </span>
-      </div>
+    <div style={styles.gazeRow}>
       <div style={{
-        ...styles.mutualDot,
+        ...styles.gazeDot,
         background: isNA ? '#1e232d' : active ? '#6ee7a0' : '#252a33',
-        boxShadow: !isNA && active ? '0 0 10px #6ee7a044' : 'none',
+        boxShadow: !isNA && active ? '0 0 8px #6ee7a066' : 'none',
       }} />
+      <span style={styles.metricLabel}>Mutual Attention</span>
+      <span style={{
+        ...styles.gazeStatus,
+        color: isNA ? '#4b5563' : active ? '#6ee7a0' : '#6b7280',
+      }}>
+        {isNA ? 'N/A' : active ? 'Active' : 'No'}
+      </span>
     </div>
   );
 }
@@ -50,7 +70,7 @@ function MetricsSidebar({ metrics }) {
 
       <div style={styles.section}>
         <span style={styles.sectionLabel}>You (Tutor)</span>
-        <MetricBar label="Eye Contact" value={tutorEyeContact} color="#e8985a" />
+        <GazeIndicator label="Eye Contact" value={tutorEyeContact} activeColor="#e8985a" />
         <MetricBar label="Talk Time" value={tutorTalkTime} color="#e8985a" />
         <MetricBar label="Energy" value={tutorEnergy} color="#c4a5e0" />
       </div>
@@ -59,7 +79,7 @@ function MetricsSidebar({ metrics }) {
         <span style={styles.sectionLabel}>
           Student{!hasStudent ? ' (not connected)' : ''}
         </span>
-        <MetricBar label="Eye Contact" value={studentEyeContact} color="#6ee7a0" />
+        <GazeIndicator label="Eye Contact" value={studentEyeContact} activeColor="#6ee7a0" />
         <MetricBar label="Talk Time" value={studentTalkTime} color="#7ab8e0" />
         <MetricBar label="Energy" value={studentEnergy} color="#a78bde" />
       </div>
@@ -133,16 +153,22 @@ const styles = {
     transition: 'width 0.6s ease',
     opacity: 0.85,
   },
-  mutualAttention: {
+  gazeRow: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
+    alignItems: 'center',
+    gap: '8px',
   },
-  mutualDot: {
-    width: '100%',
-    height: '5px',
-    borderRadius: '3px',
-    transition: 'background 0.6s ease, box-shadow 0.6s ease',
+  gazeDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    flexShrink: 0,
+    transition: 'background 0.4s ease, box-shadow 0.4s ease',
+  },
+  gazeStatus: {
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    marginLeft: 'auto',
   },
 };
 

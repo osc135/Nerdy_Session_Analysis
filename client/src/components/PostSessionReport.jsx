@@ -1,7 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, Component } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { generateReport } from '../utils/reportGenerator';
+import MetricGauge from './MetricGauge';
+import TimelineChart from './TimelineChart';
+
+class ReportErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error('Report render error:', error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: '2rem', color: '#f08080', textAlign: 'center', marginTop: '20vh' }}>
+          <h2>Report failed to render</h2>
+          <pre style={{ color: '#9ca3af', fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
+            {this.state.error.message}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function PostSessionReport() {
   const { sessionId } = useParams();
@@ -31,11 +59,17 @@ function PostSessionReport() {
         }
 
         if (!cancelled) {
-          setReport(generateReport({ ...session, sessionId }));
+          try {
+            setReport(generateReport({ ...session, sessionId }));
+          } catch (genErr) {
+            console.error('generateReport crashed:', genErr);
+            setError(`Report generation failed: ${genErr.message}`);
+          }
           setLoading(false);
         }
       } catch (err) {
         if (!cancelled) {
+          console.error('Report fetch failed:', err);
           setError(err.message);
           setLoading(false);
         }
@@ -45,6 +79,21 @@ function PostSessionReport() {
     fetchReport();
     return () => { cancelled = true; };
   }, [sessionId]);
+
+  // useMemo must run on every render (Rules of Hooks — no hooks after early returns)
+  const snapshots = report?.snapshots;
+  const timelineData = useMemo(() => {
+    if (!snapshots?.length) return [];
+    return snapshots.map(s => ({
+      elapsed: Math.round((s.elapsed || 0) / 1000),
+      tutorEye: Math.round(s.tutor?.gazeScore ?? 0),
+      studentEye: s.student?.gazeScore != null ? Math.round(s.student.gazeScore) : null,
+      tutorTalk: Math.round(s.tutor?.talkTimePercent ?? 0),
+      studentTalk: s.student?.talkTimePercent != null ? Math.round(s.student.talkTimePercent) : null,
+      tutorEnergy: Math.round((s.tutor?.energy ?? 0) * 100),
+      studentEnergy: s.student?.energy != null ? Math.round(s.student.energy * 100) : null,
+    }));
+  }, [snapshots]);
 
   if (loading) {
     return (
@@ -74,6 +123,7 @@ function PostSessionReport() {
     : summary.engagementScore >= 40 ? '#d4a04a' : '#f08080';
 
   return (
+    <ReportErrorBoundary>
     <div style={styles.container}>
       <div style={styles.content}>
         {/* Header */}
@@ -97,16 +147,13 @@ function PostSessionReport() {
         {/* Tutor Metrics */}
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Tutor</h3>
-          <div style={styles.cardGrid}>
-            <MetricCard label="Eye Contact" value={summary.eyeContact.tutor} unit="%" color="#e8985a" />
-            <MetricCard label="Talk Time" value={summary.talkTime.tutor} unit="%" color="#e8985a" />
-            <MetricCard label="Energy" value={summary.energy.tutor} unit="%" color="#c4a5e0" />
-            {hasStudent && <MetricCard
-              label="Interruptions Made"
-              value={summary.interruptions.tutorInitiated}
-              unit=""
-              color="#e8985a"
-            />}
+          <div style={styles.card}>
+            <div style={styles.gaugeRow}>
+              <MetricGauge label="Eye Contact" value={summary.eyeContact.tutor} accentColor="#e8985a" />
+              <MetricGauge label="Talk Time" value={summary.talkTime.tutor} accentColor="#e8985a" />
+              <MetricGauge label="Energy" value={summary.energy.tutor} accentColor="#c4a5e0" />
+              {hasStudent && <MetricGauge label="Interruptions" value={summary.interruptions.tutorInitiated} accentColor="#e8985a" />}
+            </div>
           </div>
         </div>
 
@@ -114,16 +161,13 @@ function PostSessionReport() {
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Student</h3>
           {hasStudent ? (
-            <div style={styles.cardGrid}>
-              <MetricCard label="Eye Contact" value={summary.eyeContact.student} unit="%" color="#6ee7a0" />
-              <MetricCard label="Talk Time" value={summary.talkTime.student} unit="%" color="#7ab8e0" />
-              <MetricCard label="Energy" value={summary.energy.student} unit="%" color="#a78bde" />
-              <MetricCard
-                label="Interruptions Made"
-                value={summary.interruptions.studentInitiated}
-                unit=""
-                color="#7ab8e0"
-              />
+            <div style={styles.card}>
+              <div style={styles.gaugeRow}>
+                <MetricGauge label="Eye Contact" value={summary.eyeContact.student} accentColor="#6ee7a0" />
+                <MetricGauge label="Talk Time" value={summary.talkTime.student} accentColor="#7ab8e0" />
+                <MetricGauge label="Energy" value={summary.energy.student} accentColor="#a78bde" />
+                <MetricGauge label="Interruptions" value={summary.interruptions.studentInitiated} accentColor="#7ab8e0" />
+              </div>
             </div>
           ) : (
             <div style={styles.card}>
@@ -182,6 +226,16 @@ function PostSessionReport() {
                   opacity: 0.8,
                 }} />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Session Timeline */}
+        {timelineData.length > 0 && (
+          <div style={styles.section}>
+            <h3 style={styles.sectionTitle}>Session Timeline</h3>
+            <div style={styles.card}>
+              <TimelineChart data={timelineData} />
             </div>
           </div>
         )}
@@ -267,6 +321,7 @@ function PostSessionReport() {
         )}
       </div>
     </div>
+    </ReportErrorBoundary>
   );
 }
 
@@ -403,6 +458,12 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.4rem',
+  },
+  gaugeRow: {
+    display: 'flex',
+    justifyContent: 'space-around',
+    gap: '0.5rem',
+    padding: '0.5rem 0',
   },
   cardLabel: {
     fontSize: '0.7rem',

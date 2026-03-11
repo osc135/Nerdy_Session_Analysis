@@ -45,8 +45,8 @@ const GAZE_BLENDSHAPES = {
 export const THRESHOLDS = {
   // Blendshape-based: how much "looking away" is tolerated before losing contact
   GAZE_AWAY_THRESHOLD: 0.35,
-  HEAD_YAW_TOLERANCE: 20,
-  HEAD_PITCH_TOLERANCE: 18,
+  HEAD_YAW_TOLERANCE: 30,
+  HEAD_PITCH_TOLERANCE: 25,
   BLINK_THRESHOLD: 0.55,
   BLINK_EAR_THRESHOLD: 0.2, // kept for test compatibility
 };
@@ -98,13 +98,11 @@ function getBlendshape(blendshapes, name) {
 export function computeEyeContact(landmarks, blendshapes = null) {
   const headPose = estimateHeadPose(landmarks);
 
-  // ─── Blendshape mode (preferred) ───
+  // Use blendshapes only for blink detection (they're reliable for that)
   if (blendshapes && blendshapes[0]?.categories) {
     const blinkL = getBlendshape(blendshapes, GAZE_BLENDSHAPES.blinkLeft);
     const blinkR = getBlendshape(blendshapes, GAZE_BLENDSHAPES.blinkRight);
-    const blinking = blinkL > THRESHOLDS.BLINK_THRESHOLD && blinkR > THRESHOLDS.BLINK_THRESHOLD;
-
-    if (blinking) {
+    if (blinkL > THRESHOLDS.BLINK_THRESHOLD && blinkR > THRESHOLDS.BLINK_THRESHOLD) {
       return {
         eyeContact: null,
         gazeConfidence: null,
@@ -113,50 +111,9 @@ export function computeEyeContact(landmarks, blendshapes = null) {
         blinking: true,
       };
     }
-
-    // Get directional gaze scores (0 = looking straight, 1 = fully in that direction)
-    const upL = getBlendshape(blendshapes, GAZE_BLENDSHAPES.lookUpLeft);
-    const upR = getBlendshape(blendshapes, GAZE_BLENDSHAPES.lookUpRight);
-    const downL = getBlendshape(blendshapes, GAZE_BLENDSHAPES.lookDownLeft);
-    const downR = getBlendshape(blendshapes, GAZE_BLENDSHAPES.lookDownRight);
-    const inL = getBlendshape(blendshapes, GAZE_BLENDSHAPES.lookInLeft);
-    const inR = getBlendshape(blendshapes, GAZE_BLENDSHAPES.lookInRight);
-    const outL = getBlendshape(blendshapes, GAZE_BLENDSHAPES.lookOutLeft);
-    const outR = getBlendshape(blendshapes, GAZE_BLENDSHAPES.lookOutRight);
-
-    // Average each direction across both eyes
-    const up = (upL + upR) / 2;
-    const down = (downL + downR) / 2;
-    const sideways = Math.max((inL + outR) / 2, (outL + inR) / 2); // net lateral
-    const vertical = Math.max(up, down);
-
-    // The max "looking away" signal across all directions
-    const maxAway = Math.max(up, down, inL, inR, outL, outR);
-
-    // Head pose penalty
-    const yawOver = Math.max(0, Math.abs(headPose.yaw) - THRESHOLDS.HEAD_YAW_TOLERANCE);
-    const pitchOver = Math.max(0, Math.abs(headPose.pitch) - THRESHOLDS.HEAD_PITCH_TOLERANCE);
-    const headPenalty = Math.exp(-(yawOver ** 2) / 200 - (pitchOver ** 2) / 128);
-
-    // Confidence: 1 when all directions are 0, drops as any direction increases
-    // Using quadratic falloff for a smooth curve
-    const gazeConfidence = Math.max(0, Math.min(1,
-      (1 - maxAway * 1.8) * headPenalty
-    ));
-
-    const eyeContact = gazeConfidence > 0.5;
-
-    return {
-      eyeContact,
-      gazeConfidence,
-      gazeVector: { x: sideways, y: vertical },
-      headPose,
-      blinking: false,
-      gazeDir: { up, down, sideways, maxAway },
-    };
   }
 
-  // ─── Fallback: landmark-based (no blendshapes available) ───
+  // Iris-landmark gaze detection — measures where the iris sits within the eye
   return computeEyeContactFallback(landmarks, headPose);
 }
 
@@ -376,8 +333,8 @@ export function useMediaPipe(videoRef, sessionId = null) {
           confidence: (smoothedConf ?? 0).toFixed(2),
           rawConf: (rawConf ?? 0).toFixed(2),
           contact: gazeResult.eyeContact ? 'Y' : 'N',
-          maxAway: gazeResult.gazeDir?.maxAway?.toFixed(2) ?? '-',
-          mode: gazeResult.gazeDir ? 'blendshape' : 'fallback',
+          irisX: gazeResult.irisDeviation?.x?.toFixed(3) ?? '-',
+          irisY: gazeResult.irisDeviation?.y?.toFixed(3) ?? '-',
         });
       } else {
         frameData = {

@@ -28,6 +28,7 @@ export function generateReport(sessionData) {
     keyMoments: findKeyMoments(tutorSnapshots, studentSnapshots),
     nudgeLog: tutor?.nudges || [],
     recommendations: generateRecommendations({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent }, tutor?.nudges || []),
+    snapshots: tutorSnapshots,
   };
 }
 

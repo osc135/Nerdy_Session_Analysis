@@ -254,68 +254,50 @@ describe('computeEyeContact', () => {
   });
 });
 
-// ─── computeEyeContact with calibration model ──────────────────────
+// ─── computeEyeContact with blendshapes (blink detection only) ──────
 
-describe('computeEyeContact with calibration model', () => {
-  // Build a simple calibration model where centered gaze maps to screen center
-  function makeCalibrationModel() {
-    // coeffX: screenX = 50 (constant) — any gaze maps to center
-    // coeffY: screenY = 50 (constant)
-    return {
-      coeffX: [50, 0, 0, 0, 0],
-      coeffY: [50, 0, 0, 0, 0],
-      rmseX: 5,
-      rmseY: 5,
-      numSamples: 25,
+describe('computeEyeContact with blendshapes', () => {
+  function makeBlendshapes(overrides = {}) {
+    const defaults = {
+      eyeBlinkLeft: 0.05,
+      eyeBlinkRight: 0.05,
     };
+    const merged = { ...defaults, ...overrides };
+    return [{
+      categories: Object.entries(merged).map(([name, score]) => ({
+        categoryName: name,
+        score,
+      })),
+    }];
   }
 
-  // Model that maps gaze far off screen
-  function makeOffScreenModel() {
-    return {
-      coeffX: [200, 0, 0, 0, 0],  // predicted X = 200 (far outside 0-100)
-      coeffY: [200, 0, 0, 0, 0],
-      rmseX: 5,
-      rmseY: 5,
-      numSamples: 25,
-    };
-  }
+  it('uses iris landmarks for gaze even when blendshapes are available', () => {
+    const blendshapes = makeBlendshapes();
+    const result = computeEyeContact(makeLandmarks(), blendshapes);
 
-  it('detects eye contact when model predicts on-screen', () => {
-    const model = makeCalibrationModel();
-    const result = computeEyeContact(makeLandmarks(), model);
-
+    // Should detect contact via iris position (centered iris = looking at camera)
     expect(result.eyeContact).toBe(true);
     expect(result.gazeConfidence).toBeGreaterThan(0.5);
-    expect(result.screenPos).toBeDefined();
+    expect(result.irisDeviation).toBeDefined();
   });
 
-  it('detects NO eye contact when model predicts off-screen', () => {
-    const model = makeOffScreenModel();
-    const result = computeEyeContact(makeLandmarks(), model);
-
-    expect(result.eyeContact).toBe(false);
-    expect(result.gazeConfidence).toBeLessThan(0.5);
-  });
-
-  it('still returns null for blinks even with calibration model', () => {
-    const landmarks = makeLandmarks({
-      [LANDMARKS.LEFT_EYE_TOP]:    { x: 0.37, y: 0.439 },
-      [LANDMARKS.LEFT_EYE_BOTTOM]: { x: 0.37, y: 0.441 },
+  it('detects blinks via blendshapes', () => {
+    const blendshapes = makeBlendshapes({
+      eyeBlinkLeft: 0.9,
+      eyeBlinkRight: 0.9,
     });
-    const model = makeCalibrationModel();
+    const result = computeEyeContact(makeLandmarks(), blendshapes);
 
-    const result = computeEyeContact(landmarks, model);
     expect(result.eyeContact).toBeNull();
     expect(result.blinking).toBe(true);
   });
 
-  it('uses fallback mode when model is null', () => {
+  it('uses fallback mode when blendshapes is null', () => {
     const landmarks = makeLandmarks();
-    const withModel = computeEyeContact(landmarks, null);
-    const withoutModel = computeEyeContact(landmarks);
+    const withNull = computeEyeContact(landmarks, null);
+    const withUndefined = computeEyeContact(landmarks);
 
-    expect(withModel.eyeContact).toBe(withoutModel.eyeContact);
+    expect(withNull.eyeContact).toBe(withUndefined.eyeContact);
   });
 });
 
