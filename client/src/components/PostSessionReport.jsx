@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, Component } from 'react';
+import { useState, useEffect, useMemo, useCallback, Component } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { generateReport, SESSION_TYPE_BENCHMARKS } from '../utils/reportGenerator';
+import { exportReportPDF } from '../utils/pdfExport';
 import MetricGauge from './MetricGauge';
 import TimelineChart from './TimelineChart';
 
@@ -38,6 +39,19 @@ function PostSessionReport() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleDownloadPDF = useCallback(() => {
+    if (!report || exporting) return;
+    setExporting(true);
+    try {
+      exportReportPDF(report);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [report, exporting]);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,7 +148,12 @@ function PostSessionReport() {
             <h1 style={styles.title}>Session Report</h1>
             <p style={styles.subtitle}>Session {sessionId} — {report.durationMinutes} minutes — {bench.label}</p>
           </div>
-          <button style={styles.homeBtn} onClick={() => navigate('/')}>New Session</button>
+          <div style={styles.headerActions}>
+            <button style={styles.downloadBtn} onClick={handleDownloadPDF} disabled={exporting}>
+              {exporting ? 'Exporting...' : 'Download PDF'}
+            </button>
+            <button style={styles.homeBtn} onClick={() => navigate('/')}>New Session</button>
+          </div>
         </div>
 
         {/* Engagement Score — hero card */}
@@ -398,6 +417,22 @@ const styles = {
     margin: '0.25rem 0 0',
     color: '#6b7280',
     fontSize: '0.88rem',
+  },
+  headerActions: {
+    display: 'flex',
+    gap: '0.5rem',
+    alignItems: 'center',
+  },
+  downloadBtn: {
+    background: '#2d7a4a',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '0.5rem 1rem',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'opacity 0.15s',
   },
   homeBtn: {
     background: '#1e232d',
