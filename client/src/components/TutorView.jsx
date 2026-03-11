@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
@@ -11,6 +11,8 @@ import NudgePanel from './NudgePanel';
 
 function TutorView() {
   const { sessionId } = useParams();
+  const [searchParams] = useSearchParams();
+  const sessionType = searchParams.get('type') || 'lecture';
   const navigate = useNavigate();
   const { token } = useAuth();
   const { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect } = useWebRTC(sessionId, 'tutor');
@@ -34,7 +36,7 @@ function TutorView() {
       { gazeScore, isSpeaking, volume, energy, speakingMs: audio.speakingMs, totalMs: audio.totalMs },
       remoteMetrics || {},
     );
-    const data = historyRef.current.getHistory();
+    const data = { ...historyRef.current.getHistory(), sessionType };
     disconnect();
     try {
       await fetch(`/api/sessions/${sessionId}/tutor`, {
@@ -145,6 +147,7 @@ function TutorView() {
     remoteMetrics,
     connectionState,
     elapsed,
+    sessionType,
   });
 
   // Record nudges into history as they fire
@@ -177,6 +180,7 @@ function TutorView() {
         <div style={styles.topBar}>
           <h2 style={styles.heading}>Tutor Session</h2>
           <span style={styles.sessionId}>Session: {sessionId}</span>
+          <span style={styles.sessionType}>{sessionType}</span>
           <span style={styles.timer}>{formatTime(elapsed)}</span>
           <span style={{
             ...styles.status,
@@ -261,6 +265,15 @@ const styles = {
   sessionId: {
     color: '#6b7280',
     fontSize: '0.8rem',
+  },
+  sessionType: {
+    color: '#2d7a4a',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'capitalize',
+    background: '#2d7a4a22',
+    padding: '2px 8px',
+    borderRadius: '4px',
   },
   timer: {
     color: '#d1d5db',

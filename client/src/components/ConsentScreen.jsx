@@ -18,16 +18,23 @@ function usePreloadMediaPipe() {
   }, []);
 }
 
+const SESSION_TYPES = [
+  { value: 'lecture', label: 'Lecture / Explanation', desc: 'Tutor presents, student listens — 70-80% tutor talk expected' },
+  { value: 'practice', label: 'Practice / Review', desc: 'Student works through problems — 30-50% tutor talk expected' },
+  { value: 'socratic', label: 'Socratic Discussion', desc: 'Back-and-forth dialogue — 40-60% tutor talk expected' },
+];
+
 function ConsentScreen() {
   usePreloadMediaPipe();
   const [agreed, setAgreed] = useState(false);
   const [sessionCode, setSessionCode] = useState('');
+  const [sessionType, setSessionType] = useState('lecture');
   const navigate = useNavigate();
 
   const handleTutorJoin = () => {
     if (!agreed) return;
     const sessionId = crypto.randomUUID().slice(0, 8);
-    navigate(`/tutor/${sessionId}`);
+    navigate(`/tutor/${sessionId}?type=${sessionType}`);
   };
 
   const handleStudentJoin = () => {
@@ -62,6 +69,33 @@ function ConsentScreen() {
           />
           <span>I understand and consent to real-time engagement analysis during this session.</span>
         </label>
+
+        <div style={styles.sessionTypeBox}>
+          <h3 style={styles.sessionTypeTitle}>Session Type</h3>
+          <div style={styles.typeOptions}>
+            {SESSION_TYPES.map(t => (
+              <label
+                key={t.value}
+                style={{
+                  ...styles.typeOption,
+                  borderColor: sessionType === t.value ? '#2d7a4a' : '#252a33',
+                  background: sessionType === t.value ? '#2d7a4a18' : 'transparent',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="sessionType"
+                  value={t.value}
+                  checked={sessionType === t.value}
+                  onChange={() => setSessionType(t.value)}
+                  style={{ display: 'none' }}
+                />
+                <span style={styles.typeLabel}>{t.label}</span>
+                <span style={styles.typeDesc}>{t.desc}</span>
+              </label>
+            ))}
+          </div>
+        </div>
 
         <div style={styles.buttons}>
           <button
@@ -196,6 +230,39 @@ const styles = {
   studentJoin: {
     display: 'flex',
     gap: '1rem',
+  },
+  sessionTypeBox: {
+    marginBottom: '1.5rem',
+  },
+  sessionTypeTitle: {
+    fontSize: '0.95rem',
+    marginBottom: '0.75rem',
+    color: '#e0e4ea',
+    fontWeight: 600,
+  },
+  typeOptions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  typeOption: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    padding: '0.75rem 1rem',
+    borderRadius: '8px',
+    border: '1px solid',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s, background 0.15s',
+  },
+  typeLabel: {
+    fontSize: '0.88rem',
+    fontWeight: 600,
+    color: '#e0e4ea',
+  },
+  typeDesc: {
+    fontSize: '0.78rem',
+    color: '#6b7280',
   },
   codeInput: {
     flex: 1,

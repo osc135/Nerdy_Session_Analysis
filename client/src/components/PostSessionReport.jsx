@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, Component } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { generateReport } from '../utils/reportGenerator';
+import { generateReport, SESSION_TYPE_BENCHMARKS } from '../utils/reportGenerator';
 import MetricGauge from './MetricGauge';
 import TimelineChart from './TimelineChart';
 
@@ -118,7 +118,8 @@ function PostSessionReport() {
     );
   }
 
-  const { summary, keyMoments, nudgeLog, recommendations, hasStudent } = report;
+  const { summary, keyMoments, nudgeLog, recommendations, hasStudent, sessionType } = report;
+  const bench = SESSION_TYPE_BENCHMARKS[sessionType] || SESSION_TYPE_BENCHMARKS.lecture;
   const scoreColor = summary.engagementScore >= 70 ? '#6ee7a0'
     : summary.engagementScore >= 40 ? '#d4a04a' : '#f08080';
 
@@ -130,7 +131,7 @@ function PostSessionReport() {
         <div style={styles.header}>
           <div>
             <h1 style={styles.title}>Session Report</h1>
-            <p style={styles.subtitle}>Session {sessionId} — {report.durationMinutes} minutes</p>
+            <p style={styles.subtitle}>Session {sessionId} — {report.durationMinutes} minutes — {bench.label}</p>
           </div>
           <button style={styles.homeBtn} onClick={() => navigate('/')}>New Session</button>
         </div>
@@ -206,6 +207,9 @@ function PostSessionReport() {
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>Talk Time Balance</h3>
             <div style={styles.card}>
+              <div style={styles.benchmarkNote}>
+                Target for {bench.label}: {bench.min}-{bench.max}% tutor
+              </div>
               <div style={styles.balanceLabels}>
                 <span style={styles.balanceLabelLeft}>Tutor {summary.talkTime.tutor}%</span>
                 <span style={styles.balanceLabelRight}>Student {summary.talkTime.student}%</span>
@@ -486,6 +490,12 @@ const styles = {
   cardUnit: {
     fontSize: '0.85rem',
     fontWeight: 600,
+  },
+  benchmarkNote: {
+    fontSize: '0.78rem',
+    color: '#6b7280',
+    marginBottom: '0.5rem',
+    fontStyle: 'italic',
   },
   balanceLabels: {
     display: 'flex',

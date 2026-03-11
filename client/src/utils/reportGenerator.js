@@ -1,7 +1,15 @@
 // Builds the post-session report data structure from metric history
 
+// Ideal talk time ranges per session type (tutor %)
+export const SESSION_TYPE_BENCHMARKS = {
+  lecture:  { min: 70, max: 80, label: 'Lecture / Explanation' },
+  practice: { min: 30, max: 50, label: 'Practice / Review' },
+  socratic: { min: 40, max: 60, label: 'Socratic Discussion' },
+};
+
 export function generateReport(sessionData) {
   const { tutor, student, sessionId } = sessionData;
+  const sessionType = tutor?.sessionType || 'lecture';
 
   const tutorSnapshots = tutor?.snapshots || [];
   const studentSnapshots = student?.snapshots || [];
@@ -17,17 +25,18 @@ export function generateReport(sessionData) {
   const interruptions = computeInterruptionSummary(tutorSnapshots);
   const energy = computeEnergySummary(tutorSnapshots, studentSnapshots);
   const mutualAttention = computeMutualAttention(tutorSnapshots);
-  const engagementScore = computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent });
+  const engagementScore = computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent, sessionType });
 
   return {
     sessionId,
+    sessionType,
     duration,
     durationMinutes: Math.round(duration / 60000),
     hasStudent,
     summary: { talkTime, eyeContact, interruptions, energy, mutualAttention, engagementScore },
     keyMoments: findKeyMoments(tutorSnapshots, studentSnapshots),
     nudgeLog: tutor?.nudges || [],
-    recommendations: generateRecommendations({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent }, tutor?.nudges || []),
+    recommendations: generateRecommendations({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent, sessionType }, tutor?.nudges || []),
     snapshots: tutorSnapshots,
   };
 }
@@ -239,7 +248,7 @@ function findKeyMoments(tutorSnaps) {
 
 // ─── Tier 3: Composite / derived ────────────────────────────────────
 
-function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent }) {
+function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent, sessionType = 'lecture' }) {
   if (!hasStudent) {
     // Tutor-only session: score based on tutor metrics only
     const tutorGazeScore = eyeContact.tutor / 100;
@@ -260,8 +269,10 @@ function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, m
   // Mutual attention bonus (weight 0.1)
   const mutualScore = (mutualAttention?.percent || 0) / 100;
 
-  // Talk balance: perfect at 50/50, worst at 100/0 (weight 0.2)
-  const balanceScore = 1 - Math.abs(talkTime.tutor - 50) / 50;
+  // Talk balance: score based on how close to ideal range for session type (weight 0.2)
+  const bench = SESSION_TYPE_BENCHMARKS[sessionType] || SESSION_TYPE_BENCHMARKS.lecture;
+  const idealCenter = (bench.min + bench.max) / 2;
+  const balanceScore = Math.max(0, 1 - Math.abs(talkTime.tutor - idealCenter) / 50);
 
   // Energy: average of both (weight 0.2)
   const energyScore = ((energy.student + energy.tutor) / 2) / 100;
@@ -282,7 +293,8 @@ function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, m
 
 function generateRecommendations(summaries, nudges) {
   const recs = [];
-  const { talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent } = summaries;
+  const { talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent, sessionType = 'lecture' } = summaries;
+  const bench = SESSION_TYPE_BENCHMARKS[sessionType] || SESSION_TYPE_BENCHMARKS.lecture;
 
   if (eyeContact.tutor < 50) {
     recs.push({
@@ -299,10 +311,15 @@ function generateRecommendations(summaries, nudges) {
   }
 
   if (hasStudent) {
-    if (talkTime.tutor > 70) {
+    if (talkTime.tutor > bench.max) {
       recs.push({
-        text: 'You did most of the talking this session. Try asking more open-ended questions to involve the student.',
+        text: `Your talk time (${talkTime.tutor}%) was above the ${bench.min}-${bench.max}% target for a ${bench.label} session. Try giving the student more space to participate.`,
         priority: 'high',
+      });
+    } else if (talkTime.tutor < bench.min) {
+      recs.push({
+        text: `Your talk time (${talkTime.tutor}%) was below the ${bench.min}-${bench.max}% target for a ${bench.label} session. The student may need more guidance or explanation.`,
+        priority: 'medium',
       });
     }
 

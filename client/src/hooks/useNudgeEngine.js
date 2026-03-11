@@ -3,6 +3,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 const COOLDOWN_MS = 2 * 60 * 1000; // same nudge type can't fire within 2 minutes
 const CHECK_INTERVAL_MS = 2000;     // check thresholds every 2 seconds
 
+// Talk time thresholds per session type — nudge fires when tutor exceeds this
+const TALK_TIME_THRESHOLDS = {
+  lecture:  { max: 85, message: 'Even in a lecture, pausing to check for understanding helps. Try asking a quick question.' },
+  practice: { max: 55, message: 'In a practice session, the student should be doing most of the work. Try stepping back and letting them lead.' },
+  socratic: { max: 65, message: 'A Socratic discussion works best as a dialogue. Try asking a thought-provoking question instead of explaining.' },
+};
+
 // Nudge definitions: each has a type key, a check function, and a message
 const NUDGE_RULES = [
   {
@@ -34,9 +41,15 @@ const NUDGE_RULES = [
   {
     type: 'talk_time_imbalance',
     requiresStudent: true,
-    message: 'You\'ve been doing most of the talking. Consider pausing to check for understanding.',
-    check: ({ tutorTalkPercent, sessionMs }) =>
-      tutorTalkPercent > 80 && sessionMs >= 300_000,
+    message: null, // set dynamically based on session type
+    check: ({ tutorTalkPercent, sessionMs, sessionType }) => {
+      const threshold = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
+      return tutorTalkPercent > threshold.max && sessionMs >= 300_000;
+    },
+    getMessage: ({ sessionType }) => {
+      const threshold = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
+      return threshold.message;
+    },
   },
   {
     type: 'energy_drop',
@@ -58,7 +71,7 @@ const NUDGE_RULES = [
   },
 ];
 
-export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, elapsed }) {
+export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, elapsed, sessionType = 'lecture' }) {
   const [nudges, setNudges] = useState([]);
   const lastFiredRef = useRef({}); // { [type]: timestamp }
 
@@ -225,6 +238,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
         energyDrop,
         recentInterruptions,
         recentTutorInterruptions,
+        sessionType,
       };
 
       for (const rule of NUDGE_RULES) {
@@ -233,8 +247,9 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
           const lastFired = lastFiredRef.current[rule.type] || 0;
           if (now - lastFired >= COOLDOWN_MS) {
             lastFiredRef.current[rule.type] = now;
+            const message = rule.getMessage ? rule.getMessage(context) : rule.message;
             setNudges(prev => [...prev, {
-              message: rule.message,
+              message,
               timestamp: formatTime(elapsedRef.current),
               type: rule.type,
             }]);

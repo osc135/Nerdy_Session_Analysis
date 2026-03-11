@@ -215,7 +215,7 @@ describe('useNudgeEngine – low_eye_contact', () => {
 // ─── Talk time imbalance ────────────────────────────────────────────
 
 describe('useNudgeEngine – talk_time_imbalance', () => {
-  it('fires when tutor talks > 80% after 5 min session', () => {
+  it('fires when tutor talks above session type threshold after 5 min', () => {
     const props = makeProps({
       localMetrics: {
         isSpeaking: false,
@@ -223,6 +223,7 @@ describe('useNudgeEngine – talk_time_imbalance', () => {
       },
       remoteMetrics: { isSpeaking: false, gazeScore: 80, energy: 0.5, speakingMs: 50_000 },
       elapsed: 310, // > 300 seconds
+      sessionType: 'practice', // threshold 55%, tutor at 83%
     });
 
     const { result } = renderHook(() => useNudgeEngine(props));
@@ -231,7 +232,7 @@ describe('useNudgeEngine – talk_time_imbalance', () => {
 
     const talkNudge = result.current.find(n => n.type === 'talk_time_imbalance');
     expect(talkNudge).toBeDefined();
-    expect(talkNudge.message).toContain('most of the talking');
+    expect(talkNudge.message).toContain('student should be doing most of the work');
   });
 
   it('does NOT fire before 5 minutes into the session', () => {
@@ -242,6 +243,7 @@ describe('useNudgeEngine – talk_time_imbalance', () => {
       },
       remoteMetrics: { isSpeaking: false, gazeScore: 80, energy: 0.5, speakingMs: 30_000 },
       elapsed: 250, // < 300 seconds
+      sessionType: 'practice',
     });
 
     const { result } = renderHook(() => useNudgeEngine(props));
@@ -252,7 +254,7 @@ describe('useNudgeEngine – talk_time_imbalance', () => {
     expect(talkNudge).toBeUndefined();
   });
 
-  it('does NOT fire when tutor talks <= 80%', () => {
+  it('does NOT fire when tutor talks within session type range', () => {
     const props = makeProps({
       localMetrics: {
         isSpeaking: false,
@@ -260,6 +262,7 @@ describe('useNudgeEngine – talk_time_imbalance', () => {
       },
       remoteMetrics: { isSpeaking: false, gazeScore: 80, energy: 0.5, speakingMs: 150_000 },
       elapsed: 310,
+      sessionType: 'socratic', // threshold 65%, tutor at 50% — within range
     });
 
     const { result } = renderHook(() => useNudgeEngine(props));
