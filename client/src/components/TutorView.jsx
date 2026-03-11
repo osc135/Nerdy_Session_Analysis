@@ -13,6 +13,7 @@ function TutorView() {
   const { sessionId } = useParams();
   const [searchParams] = useSearchParams();
   const sessionType = searchParams.get('type') || 'lecture';
+  const sensitivity = searchParams.get('sensitivity') || 'medium';
   const navigate = useNavigate();
   const { token } = useAuth();
   const { connectionState, localStream, remoteStream, remoteMetrics, sendMetrics, disconnect } = useWebRTC(sessionId, 'tutor');
@@ -172,6 +173,7 @@ function TutorView() {
     connectionState,
     elapsed,
     sessionType,
+    sensitivity,
   });
 
   // Record nudges into history as they fire
@@ -205,6 +207,7 @@ function TutorView() {
           <h2 style={styles.heading}>Tutor Session</h2>
           <span style={styles.sessionId}>Session: {sessionId}</span>
           <span style={styles.sessionType}>{sessionType}</span>
+          <span style={styles.sensitivityBadge}>{sensitivity}</span>
           <span style={styles.timer}>{formatTime(elapsed)}</span>
           <span style={{
             ...styles.status,
@@ -296,6 +299,15 @@ const styles = {
     fontWeight: 600,
     textTransform: 'capitalize',
     background: '#2d7a4a22',
+    padding: '2px 8px',
+    borderRadius: '4px',
+  },
+  sensitivityBadge: {
+    color: '#7ab8e0',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'capitalize',
+    background: '#2b5ea622',
     padding: '2px 8px',
     borderRadius: '4px',
   },

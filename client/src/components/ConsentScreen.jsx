@@ -24,17 +24,24 @@ const SESSION_TYPES = [
   { value: 'socratic', label: 'Socratic Discussion', desc: 'Back-and-forth dialogue — 40-60% tutor talk expected' },
 ];
 
+const SENSITIVITY_LEVELS = [
+  { value: 'low', label: 'Low', desc: 'Fewer nudges — only flags major issues' },
+  { value: 'medium', label: 'Medium', desc: 'Balanced — catches most engagement issues' },
+  { value: 'high', label: 'High', desc: 'More proactive — flags early signs of disengagement' },
+];
+
 function ConsentScreen() {
   usePreloadMediaPipe();
   const [agreed, setAgreed] = useState(false);
   const [sessionCode, setSessionCode] = useState('');
   const [sessionType, setSessionType] = useState('lecture');
+  const [sensitivity, setSensitivity] = useState('medium');
   const navigate = useNavigate();
 
   const handleTutorJoin = () => {
     if (!agreed) return;
     const sessionId = crypto.randomUUID().slice(0, 8);
-    navigate(`/tutor/${sessionId}?type=${sessionType}`);
+    navigate(`/tutor/${sessionId}?type=${sessionType}&sensitivity=${sensitivity}`);
   };
 
   const handleStudentJoin = () => {
@@ -92,6 +99,33 @@ function ConsentScreen() {
                 />
                 <span style={styles.typeLabel}>{t.label}</span>
                 <span style={styles.typeDesc}>{t.desc}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div style={styles.sessionTypeBox}>
+          <h3 style={styles.sessionTypeTitle}>Coaching Sensitivity</h3>
+          <div style={styles.sensitivityOptions}>
+            {SENSITIVITY_LEVELS.map(s => (
+              <label
+                key={s.value}
+                style={{
+                  ...styles.sensitivityOption,
+                  borderColor: sensitivity === s.value ? '#2d7a4a' : '#252a33',
+                  background: sensitivity === s.value ? '#2d7a4a18' : 'transparent',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="sensitivity"
+                  value={s.value}
+                  checked={sensitivity === s.value}
+                  onChange={() => setSensitivity(s.value)}
+                  style={{ display: 'none' }}
+                />
+                <span style={styles.typeLabel}>{s.label}</span>
+                <span style={styles.typeDesc}>{s.desc}</span>
               </label>
             ))}
           </div>
@@ -263,6 +297,22 @@ const styles = {
   typeDesc: {
     fontSize: '0.78rem',
     color: '#6b7280',
+  },
+  sensitivityOptions: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  sensitivityOption: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    padding: '0.75rem 1rem',
+    borderRadius: '8px',
+    border: '1px solid',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s, background 0.15s',
+    textAlign: 'center',
   },
   codeInput: {
     flex: 1,

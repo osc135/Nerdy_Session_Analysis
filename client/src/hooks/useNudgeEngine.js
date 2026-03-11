@@ -1,14 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { THRESHOLDS, NUDGE_COOLDOWN_MS, TALK_TIME_THRESHOLDS } from '../utils/thresholds';
 
-const COOLDOWN_MS = 2 * 60 * 1000; // same nudge type can't fire within 2 minutes
 const CHECK_INTERVAL_MS = 2000;     // check thresholds every 2 seconds
-
-// Talk time thresholds per session type
-const TALK_TIME_THRESHOLDS = {
-  lecture:  { min: 70, max: 85 },
-  practice: { min: 30, max: 55 },
-  socratic: { min: 40, max: 65 },
-};
 
 // Nudge definitions: each has a type key, a check function, and a message
 const NUDGE_RULES = [
@@ -16,27 +9,27 @@ const NUDGE_RULES = [
     type: 'student_muted',
     requiresStudent: true,
     message: 'Your student has been muted for a while. They may have forgotten to unmute, or might not feel comfortable speaking up.',
-    check: ({ studentMutedMs }) => studentMutedMs >= 120_000,
+    check: ({ studentMutedMs, t }) => studentMutedMs >= t.studentMuted,
   },
   {
     type: 'student_silence',
     requiresStudent: true,
-    message: 'Your student hasn\'t spoken in over 3 minutes. Try asking an open-ended question to re-engage them.',
-    check: ({ studentSilenceMs }) => studentSilenceMs >= 180_000,
+    message: 'Your student hasn\'t spoken in a while. Try asking an open-ended question to re-engage them.',
+    check: ({ studentSilenceMs, t }) => studentSilenceMs >= t.studentSilence,
   },
   {
     type: 'low_eye_contact',
     requiresStudent: true,
     message: 'Your student\'s eye contact has been low. They may be distracted or looking at something else.',
-    check: ({ studentGaze, studentGazeDuration }) =>
-      studentGaze < 40 && studentGazeDuration >= 30_000,
+    check: ({ studentGaze, studentGazeDuration, t }) =>
+      studentGaze < t.studentGaze && studentGazeDuration >= t.studentGazeDuration,
   },
   {
     type: 'tutor_low_eye_contact',
     requiresStudent: false,
     message: 'Try making more eye contact with the camera. Looking at the camera helps your student feel connected.',
-    check: ({ tutorGaze, tutorGazeDuration }) =>
-      tutorGaze < 40 && tutorGazeDuration >= 30_000,
+    check: ({ tutorGaze, tutorGazeDuration, t }) =>
+      tutorGaze < t.tutorGaze && tutorGazeDuration >= t.tutorGazeDuration,
   },
   {
     type: 'talk_time_imbalance',
@@ -47,8 +40,8 @@ const NUDGE_RULES = [
       return tutorTalkPercent > threshold.max && sessionMs >= 300_000;
     },
     getMessage: ({ sessionType }) => {
-      const t = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
-      return `You're talking more than the ${t.min}-${t.max}% target for this session type. Try giving the student more space to participate.`;
+      const th = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
+      return `You're talking more than the ${th.min}-${th.max}% target for this session type. Try giving the student more space to participate.`;
     },
   },
   {
@@ -60,37 +53,37 @@ const NUDGE_RULES = [
       return tutorTalkPercent < threshold.min && sessionMs >= 300_000 && totalSpeakingMs >= 60_000;
     },
     getMessage: ({ sessionType }) => {
-      const t = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
-      return `You're talking less than the ${t.min}-${t.max}% target for this session type. The student may need more guidance or explanation.`;
+      const th = TALK_TIME_THRESHOLDS[sessionType] || TALK_TIME_THRESHOLDS.lecture;
+      return `You're talking less than the ${th.min}-${th.max}% target for this session type. The student may need more guidance or explanation.`;
     },
   },
   {
     type: 'energy_drop',
     requiresStudent: true,
     message: 'Engagement energy seems to be dropping. A change of activity or short break might help.',
-    check: ({ energyDrop }) => energyDrop >= 20,
+    check: ({ energyDrop, t }) => energyDrop >= t.energyDrop,
   },
   {
     type: 'interruption_spike',
     requiresStudent: true,
     message: 'There have been several interruptions recently. Try giving a bit more wait time before responding.',
-    check: ({ recentInterruptions }) => recentInterruptions >= 3,
+    check: ({ recentInterruptions, t }) => recentInterruptions >= t.interruptionSpike,
   },
   {
     type: 'tutor_interrupting',
     requiresStudent: true,
     message: 'You\'ve interrupted the student a few times recently. Try giving more wait time after they speak.',
-    check: ({ recentTutorInterruptions }) => recentTutorInterruptions >= 3,
+    check: ({ recentTutorInterruptions, t }) => recentTutorInterruptions >= t.tutorInterruptions,
   },
   {
     type: 'mutual_disengagement',
     requiresStudent: true,
     message: 'Your student shows signs of disengagement \u2014 low eye contact, low energy, and not speaking. Try switching to an interactive activity or asking a direct question.',
-    check: ({ driftDuration }) => driftDuration >= 20_000,
+    check: ({ driftDuration, t }) => driftDuration >= t.driftDuration,
   },
 ];
 
-export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, elapsed, sessionType = 'lecture' }) {
+export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, elapsed, sessionType = 'lecture', sensitivity = 'medium' }) {
   const [nudges, setNudges] = useState([]);
   const lastFiredRef = useRef({}); // { [type]: timestamp }
 
@@ -102,6 +95,13 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
   useEffect(() => { remoteMetricsRef.current = remoteMetrics; }, [remoteMetrics]);
   useEffect(() => { localMetricsRef.current = localMetrics; }, [localMetrics]);
   useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
+
+  // Resolve thresholds for the chosen sensitivity level
+  const t = {};
+  for (const [key, levels] of Object.entries(THRESHOLDS)) {
+    t[key] = levels[sensitivity] ?? levels.medium;
+  }
+  const cooldownMs = NUDGE_COOLDOWN_MS[sensitivity] ?? NUDGE_COOLDOWN_MS.medium;
 
   // Track student silence duration (mic on but not talking)
   const studentSilenceStartRef = useRef(null);
@@ -191,7 +191,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
       }
 
       // --- Low eye contact duration tracking (student) ---
-      if (studentGaze < 40) {
+      if (studentGaze < t.studentGaze) {
         if (!lowGazeStartRef.current) {
           lowGazeStartRef.current = now;
         }
@@ -202,7 +202,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
       }
 
       // --- Low eye contact duration tracking (tutor) ---
-      if (tutorGaze < 40) {
+      if (tutorGaze < t.tutorGaze) {
         if (!tutorLowGazeStartRef.current) {
           tutorLowGazeStartRef.current = now;
         }
@@ -225,7 +225,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
       }
 
       // --- Combined disengagement (drift) tracking ---
-      if (studentGaze < 40 && studentEnergy < 30 && !studentSpeaking) {
+      if (studentGaze < t.driftGaze && studentEnergy < t.driftEnergy && !studentSpeaking) {
         if (!driftStartRef.current) {
           driftStartRef.current = now;
         }
@@ -248,10 +248,10 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
       bothSpeakingRef.current = bothSpeaking;
       prevSpeakingRef.current = { tutor: tutorSpeaking, student: studentSpeaking };
       interruptionTimesRef.current = interruptionTimesRef.current.filter(
-        t => now - t <= 120_000
+        ts => now - ts <= 120_000
       );
       tutorInterruptionTimesRef.current = tutorInterruptionTimesRef.current.filter(
-        t => now - t <= 120_000
+        ts => now - ts <= 120_000
       );
       const recentInterruptions = interruptionTimesRef.current.length;
       const recentTutorInterruptions = tutorInterruptionTimesRef.current.length;
@@ -283,13 +283,14 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
         recentTutorInterruptions,
         driftDuration: driftDurationRef.current,
         sessionType,
+        t,
       };
 
       for (const rule of NUDGE_RULES) {
         if (rule.requiresStudent && !hasStudentRef.current) continue;
         if (rule.check(context)) {
           const lastFired = lastFiredRef.current[rule.type] || 0;
-          if (now - lastFired >= COOLDOWN_MS) {
+          if (now - lastFired >= cooldownMs) {
             lastFiredRef.current[rule.type] = now;
             const message = rule.getMessage ? rule.getMessage(context) : rule.message;
             setNudges(prev => [...prev, {
@@ -303,7 +304,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
     }, CHECK_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [connectionState, formatTime]);
+  }, [connectionState, formatTime, sensitivity]);
 
   return nudges;
 }
