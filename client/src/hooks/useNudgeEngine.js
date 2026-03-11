@@ -101,15 +101,14 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
     const interval = setInterval(() => {
       const remote = remoteMetricsRef.current;
       const local = localMetricsRef.current;
-      if (!remote) return;
 
       const now = Date.now();
-      const studentSpeaking = remote.isSpeaking;
-      const studentMuted = remote.muted ?? false;
+      const studentSpeaking = remote?.isSpeaking ?? false;
+      const studentMuted = remote?.muted ?? false;
       const tutorSpeaking = local.isSpeaking;
-      const studentGaze = remote.gazeScore ?? 0;
+      const studentGaze = remote?.gazeScore ?? 0;
       const tutorGaze = local.gazeScore ?? 0;
-      const studentEnergy = Math.round((remote.energy ?? 0) * 100);
+      const studentEnergy = Math.round((remote?.energy ?? 0) * 100);
 
       // --- Student muted tracking ---
       if (studentMuted) {
@@ -193,7 +192,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
 
       // --- Compute talk time balance ---
       const localAudio = local.getCumulativeMs();
-      const remoteSpeakingMs = remote.speakingMs || 0;
+      const remoteSpeakingMs = remote?.speakingMs || 0;
       const totalSpeakingMs = localAudio.speakingMs + remoteSpeakingMs;
       const tutorTalkPercent = totalSpeakingMs > 0
         ? Math.round((localAudio.speakingMs / totalSpeakingMs) * 100)
