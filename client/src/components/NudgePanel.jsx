@@ -21,7 +21,7 @@ function NudgeToast({ nudge, onDismiss }) {
       opacity: visible ? 1 : 0,
     }}>
       <div style={styles.toastHeader}>
-        <span style={styles.toastIcon}>&#9679;</span>
+        <span style={styles.toastDot} />
         <span style={styles.toastLabel}>Coaching Suggestion</span>
         <button style={styles.dismissBtn} onClick={() => {
           setVisible(false);
@@ -74,35 +74,38 @@ const styles = {
     maxWidth: '340px',
   },
   toast: {
-    background: '#1c2128',
-    border: '1px solid #d29922',
-    borderRadius: '8px',
-    padding: '0.75rem 1rem',
+    background: '#1c2129',
+    border: '1px solid #3d3520',
+    borderRadius: '10px',
+    padding: '0.85rem 1rem',
     transition: 'transform 0.3s ease, opacity 0.3s ease',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
   },
   toastHeader: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.4rem',
-    marginBottom: '0.4rem',
+    gap: '0.5rem',
+    marginBottom: '0.5rem',
   },
-  toastIcon: {
-    color: '#d29922',
-    fontSize: '0.6rem',
+  toastDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    background: '#d4a04a',
+    flexShrink: 0,
   },
   toastLabel: {
-    fontSize: '0.75rem',
-    color: '#d29922',
+    fontSize: '0.7rem',
+    color: '#d4a04a',
     fontWeight: 600,
     textTransform: 'uppercase',
-    letterSpacing: '0.03em',
+    letterSpacing: '0.05em',
   },
   dismissBtn: {
     marginLeft: 'auto',
     background: 'none',
     border: 'none',
-    color: '#8b949e',
+    color: '#6b7280',
     fontSize: '1.1rem',
     cursor: 'pointer',
     padding: '0 4px',
@@ -110,14 +113,14 @@ const styles = {
   },
   toastMessage: {
     margin: 0,
-    fontSize: '0.9rem',
-    color: '#e6edf3',
-    lineHeight: 1.4,
+    fontSize: '0.88rem',
+    color: '#d1d5db',
+    lineHeight: 1.5,
   },
   toastTime: {
     fontSize: '0.7rem',
-    color: '#8b949e',
-    marginTop: '0.3rem',
+    color: '#6b7280',
+    marginTop: '0.4rem',
     display: 'block',
   },
 };

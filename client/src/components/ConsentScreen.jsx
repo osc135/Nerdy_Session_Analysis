@@ -43,7 +43,7 @@ function ConsentScreen() {
 
         <div style={styles.consentBox}>
           <h2 style={styles.sectionTitle}>Before We Begin</h2>
-          <p>This system analyzes your video session in real time to provide engagement feedback. Here's what you should know:</p>
+          <p style={styles.introParagraph}>This system analyzes your video session in real time to provide engagement feedback. Here's what you should know:</p>
 
           <ul style={styles.list}>
             <li><strong>What we analyze:</strong> Facial landmarks for eye contact and energy, voice activity for speaking time — all processed locally in your browser.</li>
@@ -65,7 +65,7 @@ function ConsentScreen() {
 
         <div style={styles.buttons}>
           <button
-            style={{ ...styles.button, ...styles.tutorButton, opacity: agreed ? 1 : 0.5 }}
+            style={{ ...styles.button, ...styles.tutorButton, opacity: agreed ? 1 : 0.4 }}
             onClick={handleTutorJoin}
             disabled={!agreed}
           >
@@ -87,7 +87,7 @@ function ConsentScreen() {
             style={styles.codeInput}
           />
           <button
-            style={{ ...styles.button, ...styles.studentButton, opacity: agreed && sessionCode.trim() ? 1 : 0.5 }}
+            style={{ ...styles.button, ...styles.studentButton, opacity: agreed && sessionCode.trim() ? 1 : 0.4 }}
             onClick={handleStudentJoin}
             disabled={!agreed || !sessionCode.trim()}
           >
@@ -108,38 +108,46 @@ const styles = {
     padding: '2rem',
   },
   card: {
-    background: '#161b22',
-    borderRadius: '12px',
+    background: '#181c24',
+    borderRadius: '14px',
     padding: '3rem',
     maxWidth: '640px',
     width: '100%',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
   },
   title: {
-    fontSize: '1.8rem',
+    fontSize: '1.6rem',
     fontWeight: 700,
     marginBottom: '0.5rem',
+    color: '#e0e4ea',
   },
   subtitle: {
-    color: '#8b949e',
+    color: '#6b7280',
     marginBottom: '2rem',
+    fontSize: '0.88rem',
   },
   consentBox: {
-    background: '#0d1117',
-    borderRadius: '8px',
+    background: '#13161b',
+    borderRadius: '10px',
     padding: '1.5rem',
     marginBottom: '1.5rem',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
   },
   sectionTitle: {
-    fontSize: '1.1rem',
+    fontSize: '1.05rem',
     marginBottom: '0.75rem',
+    color: '#e0e4ea',
+  },
+  introParagraph: {
+    color: '#9ca3af',
+    fontSize: '0.9rem',
+    marginBottom: '0.5rem',
   },
   list: {
     paddingLeft: '1.25rem',
     lineHeight: '1.8',
-    fontSize: '0.9rem',
-    color: '#c9d1d9',
+    fontSize: '0.88rem',
+    color: '#9ca3af',
   },
   checkbox: {
     display: 'flex',
@@ -147,7 +155,8 @@ const styles = {
     gap: '0.5rem',
     marginBottom: '1.5rem',
     cursor: 'pointer',
-    fontSize: '0.9rem',
+    fontSize: '0.88rem',
+    color: '#9ca3af',
   },
   buttons: {
     display: 'flex',
@@ -158,17 +167,17 @@ const styles = {
     padding: '0.75rem 1.5rem',
     borderRadius: '8px',
     border: 'none',
-    fontSize: '1rem',
+    fontSize: '0.95rem',
     fontWeight: 600,
     cursor: 'pointer',
     transition: 'opacity 0.2s',
   },
   tutorButton: {
-    background: '#238636',
+    background: '#2d7a4a',
     color: 'white',
   },
   studentButton: {
-    background: '#1f6feb',
+    background: '#2b5ea6',
     color: 'white',
   },
   divider: {
@@ -178,8 +187,8 @@ const styles = {
     gap: '1rem',
   },
   dividerText: {
-    color: '#8b949e',
-    fontSize: '0.85rem',
+    color: '#6b7280',
+    fontSize: '0.82rem',
     whiteSpace: 'nowrap',
     width: '100%',
     textAlign: 'center',
@@ -192,11 +201,12 @@ const styles = {
     flex: 1,
     padding: '0.75rem 1rem',
     borderRadius: '8px',
-    border: '1px solid #30363d',
-    background: '#0d1117',
-    color: '#c9d1d9',
-    fontSize: '1rem',
+    border: '1px solid #252a33',
+    background: '#13161b',
+    color: '#d1d5db',
+    fontSize: '0.95rem',
     outline: 'none',
+    transition: 'border-color 0.15s',
   },
 };
 

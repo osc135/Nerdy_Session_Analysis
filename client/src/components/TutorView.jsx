@@ -112,27 +112,30 @@ function TutorView() {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
-  // Compute talk time balance from both sides
+  // Compute talk time as separate percentages of total session time
   const localAudio = getCumulativeMs();
   const remoteSpeakingMs = remoteMetrics?.speakingMs || 0;
-  const totalSpeakingMs = localAudio.speakingMs + remoteSpeakingMs;
-  const tutorTalkPercent = totalSpeakingMs > 0
-    ? Math.round((localAudio.speakingMs / totalSpeakingMs) * 100)
-    : 0;
-  const studentTalkPercent = totalSpeakingMs > 0
-    ? 100 - tutorTalkPercent
-    : 0;
+  const sessionTotalMs = localAudio.totalMs || 1;
+  const tutorTalkPercent = Math.round((localAudio.speakingMs / sessionTotalMs) * 100);
+  const studentTalkPercent = Math.round((remoteSpeakingMs / sessionTotalMs) * 100);
+
+  // Mutual attention: both looking at camera at the same time
+  const studentGaze = remoteMetrics?.gazeScore ?? 0;
+  const mutualAttention = gazeScore >= 50 && studentGaze >= 50;
 
   const metrics = {
-    eyeContact: remoteMetrics?.gazeScore ?? 0,
+    tutorEyeContact: gazeScore,
     tutorTalkTime: tutorTalkPercent,
+    tutorEnergy: Math.round(energy * 100),
+    studentEyeContact: studentGaze,
     studentTalkTime: studentTalkPercent,
-    energy: Math.round((remoteMetrics?.energy ?? 0) * 100),
+    studentEnergy: Math.round((remoteMetrics?.energy ?? 0) * 100),
+    mutualAttention,
   };
 
   // Nudge engine — monitors metrics and fires coaching suggestions
   const nudges = useNudgeEngine({
-    localMetrics: { isSpeaking, getCumulativeMs },
+    localMetrics: { isSpeaking, getCumulativeMs, gazeScore },
     remoteMetrics,
     connectionState,
     elapsed,
@@ -171,7 +174,7 @@ function TutorView() {
           <span style={styles.timer}>{formatTime(elapsed)}</span>
           <span style={{
             ...styles.status,
-            color: connectionState === 'connected' ? '#3fb950' : '#f0883e',
+            color: connectionState === 'connected' ? '#6ee7a0' : '#e8985a',
           }}>
             {connectionState}
           </span>
@@ -231,52 +234,57 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '1rem',
-    marginBottom: '1rem',
+    marginBottom: '0.75rem',
     flexShrink: 0,
   },
   heading: {
     margin: 0,
-    fontSize: '1.1rem',
+    fontSize: '1rem',
+    fontWeight: 600,
+    color: '#e0e4ea',
   },
   sessionId: {
-    color: '#8b949e',
+    color: '#6b7280',
     fontSize: '0.8rem',
   },
   timer: {
-    color: '#e6edf3',
+    color: '#d1d5db',
     fontSize: '0.9rem',
     fontWeight: 600,
     fontVariantNumeric: 'tabular-nums',
   },
   status: {
     marginLeft: 'auto',
-    fontSize: '0.8rem',
+    fontSize: '0.78rem',
     fontWeight: 600,
+    letterSpacing: '0.02em',
   },
   muteBtn: {
-    background: '#21262d',
-    color: '#c9d1d9',
-    border: '1px solid #30363d',
+    background: '#1e232d',
+    color: '#9ca3af',
+    border: '1px solid #252a33',
     borderRadius: '6px',
     padding: '0.4rem 1rem',
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
     fontWeight: 600,
     cursor: 'pointer',
+    transition: 'background 0.15s, border-color 0.15s',
   },
   muteBtnActive: {
-    background: '#f8514933',
-    color: '#f85149',
-    borderColor: '#f85149',
+    background: '#3b1a1a',
+    color: '#f08080',
+    borderColor: '#5c2a2a',
   },
   endBtn: {
-    background: '#da3633',
+    background: '#c23b3b',
     color: 'white',
     border: 'none',
     borderRadius: '6px',
     padding: '0.4rem 1rem',
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
     fontWeight: 600,
     cursor: 'pointer',
+    transition: 'background 0.15s',
   },
   videos: {
     flex: 1,
@@ -288,19 +296,19 @@ const styles = {
   videoBox: {
     flex: 1,
     position: 'relative',
-    background: '#161b22',
-    borderRadius: '8px',
+    background: '#181c24',
+    borderRadius: '10px',
     overflow: 'hidden',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
     minHeight: 0,
   },
   localVideoBox: {
     flex: 1,
     position: 'relative',
-    background: '#161b22',
-    borderRadius: '8px',
+    background: '#181c24',
+    borderRadius: '10px',
     overflow: 'hidden',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
     minHeight: 0,
   },
   video: {
@@ -313,23 +321,24 @@ const styles = {
     position: 'absolute',
     bottom: '8px',
     left: '8px',
-    background: 'rgba(0,0,0,0.6)',
-    padding: '2px 8px',
-    borderRadius: '4px',
-    fontSize: '0.8rem',
+    background: 'rgba(0,0,0,0.5)',
+    padding: '3px 10px',
+    borderRadius: '5px',
+    fontSize: '0.78rem',
+    color: '#b0b8c4',
   },
   hint: {
     marginTop: '1rem',
-    color: '#8b949e',
-    fontSize: '0.9rem',
+    color: '#6b7280',
+    fontSize: '0.88rem',
     flexShrink: 0,
   },
   code: {
-    background: '#161b22',
-    padding: '2px 6px',
-    borderRadius: '4px',
+    background: '#1e232d',
+    padding: '3px 8px',
+    borderRadius: '5px',
     fontSize: '0.85rem',
-    color: '#58a6ff',
+    color: '#7ab8e0',
   },
 };
 

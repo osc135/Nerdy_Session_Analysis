@@ -172,22 +172,26 @@ app.post('/api/sessions/:id/student', optionalAuth, async (req, res) => {
   }
 });
 
-// Get session report
-app.get('/api/sessions/:id/report', async (req, res) => {
+// Get session report (tutor only)
+app.get('/api/sessions/:id/report', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM sessions WHERE session_code = ?', [req.params.id]);
-    if (rows.length > 0 && rows[0].tutor_metrics) {
-      const session = rows[0];
-      return res.json({
-        sessionId: session.session_code,
-        tutor: typeof session.tutor_metrics === 'string' ? JSON.parse(session.tutor_metrics) : session.tutor_metrics,
-        student: session.student_metrics ? (typeof session.student_metrics === 'string' ? JSON.parse(session.student_metrics) : session.student_metrics) : null,
-        merged: session.merged,
-        createdAt: session.created_at,
-      });
+    if (rows.length === 0 || !rows[0].tutor_metrics) {
+      return res.status(404).json({ error: 'Session not found' });
     }
 
-    return res.status(404).json({ error: 'Session not found' });
+    const session = rows[0];
+    if (session.tutor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Only the tutor can view session reports' });
+    }
+
+    return res.json({
+      sessionId: session.session_code,
+      tutor: typeof session.tutor_metrics === 'string' ? JSON.parse(session.tutor_metrics) : session.tutor_metrics,
+      student: session.student_metrics ? (typeof session.student_metrics === 'string' ? JSON.parse(session.student_metrics) : session.student_metrics) : null,
+      merged: session.merged,
+      createdAt: session.created_at,
+    });
   } catch (err) {
     console.error('Get report error:', err);
     res.status(500).json({ error: 'Failed to get report' });
@@ -198,28 +202,20 @@ app.get('/api/sessions/:id/report', async (req, res) => {
 app.get('/api/sessions/history', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT session_code, tutor_id, student_id, tutor_metrics, student_metrics, merged, created_at, ended_at
+      `SELECT session_code, tutor_id, student_id, merged, created_at, ended_at
        FROM sessions
        WHERE tutor_id = ? OR student_id = ?
        ORDER BY created_at DESC`,
       [req.user.id, req.user.id]
     );
 
-    const sessions = rows.map(row => {
-      const tutorMetrics = row.tutor_metrics ? (typeof row.tutor_metrics === 'string' ? JSON.parse(row.tutor_metrics) : row.tutor_metrics) : null;
-      const studentMetrics = row.student_metrics ? (typeof row.student_metrics === 'string' ? JSON.parse(row.student_metrics) : row.student_metrics) : null;
-      const role = row.tutor_id === req.user.id ? 'tutor' : 'student';
-
-      return {
-        sessionCode: row.session_code,
-        role,
-        merged: row.merged,
-        createdAt: row.created_at,
-        endedAt: row.ended_at,
-        tutorMetrics,
-        studentMetrics,
-      };
-    });
+    const sessions = rows.map(row => ({
+      sessionCode: row.session_code,
+      role: row.tutor_id === req.user.id ? 'tutor' : 'student',
+      merged: row.merged,
+      createdAt: row.created_at,
+      endedAt: row.ended_at,
+    }));
 
     res.json(sessions);
   } catch (err) {

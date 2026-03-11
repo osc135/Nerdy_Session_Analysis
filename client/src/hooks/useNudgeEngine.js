@@ -22,6 +22,12 @@ const NUDGE_RULES = [
       studentGaze < 40 && studentGazeDuration >= 30_000,
   },
   {
+    type: 'tutor_low_eye_contact',
+    message: 'Try making more eye contact with the camera. Looking at the camera helps your student feel connected.',
+    check: ({ tutorGaze, tutorGazeDuration }) =>
+      tutorGaze < 40 && tutorGazeDuration >= 30_000,
+  },
+  {
     type: 'talk_time_imbalance',
     message: 'You\'ve been doing most of the talking. Consider pausing to check for understanding.',
     check: ({ tutorTalkPercent, sessionMs }) =>
@@ -36,6 +42,11 @@ const NUDGE_RULES = [
     type: 'interruption_spike',
     message: 'There have been several interruptions recently. Try giving a bit more wait time before responding.',
     check: ({ recentInterruptions }) => recentInterruptions >= 3,
+  },
+  {
+    type: 'tutor_interrupting',
+    message: 'You\'ve interrupted the student a few times recently. Try giving more wait time after they speak.',
+    check: ({ recentTutorInterruptions }) => recentTutorInterruptions >= 3,
   },
 ];
 
@@ -60,16 +71,22 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
   const studentMutedStartRef = useRef(null);
   const studentMutedMsRef = useRef(0);
 
-  // Track low eye contact duration
+  // Track low eye contact duration (student)
   const lowGazeStartRef = useRef(null);
   const lowGazeDurationRef = useRef(0);
+
+  // Track low eye contact duration (tutor)
+  const tutorLowGazeStartRef = useRef(null);
+  const tutorLowGazeDurationRef = useRef(0);
 
   // Track energy for drop detection
   const energyHistoryRef = useRef([]); // [{ time, value }]
 
   // Track interruptions (both speaking simultaneously)
   const interruptionTimesRef = useRef([]); // timestamps of detected interruptions
+  const tutorInterruptionTimesRef = useRef([]); // tutor interrupting student
   const bothSpeakingRef = useRef(false);
+  const prevSpeakingRef = useRef({ tutor: false, student: false });
 
   const formatTime = useCallback((s) => {
     const m = Math.floor(s / 60);
@@ -91,6 +108,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
       const studentMuted = remote.muted ?? false;
       const tutorSpeaking = local.isSpeaking;
       const studentGaze = remote.gazeScore ?? 0;
+      const tutorGaze = local.gazeScore ?? 0;
       const studentEnergy = Math.round((remote.energy ?? 0) * 100);
 
       // --- Student muted tracking ---
@@ -118,7 +136,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
         }
       }
 
-      // --- Low eye contact duration tracking ---
+      // --- Low eye contact duration tracking (student) ---
       if (studentGaze < 40) {
         if (!lowGazeStartRef.current) {
           lowGazeStartRef.current = now;
@@ -127,6 +145,17 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
       } else {
         lowGazeStartRef.current = null;
         lowGazeDurationRef.current = 0;
+      }
+
+      // --- Low eye contact duration tracking (tutor) ---
+      if (tutorGaze < 40) {
+        if (!tutorLowGazeStartRef.current) {
+          tutorLowGazeStartRef.current = now;
+        }
+        tutorLowGazeDurationRef.current = now - tutorLowGazeStartRef.current;
+      } else {
+        tutorLowGazeStartRef.current = null;
+        tutorLowGazeDurationRef.current = 0;
       }
 
       // --- Energy drop tracking (over 5 minute window) ---
@@ -141,16 +170,26 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
         energyDrop = Math.max(oldest - newest, 0);
       }
 
-      // --- Interruption detection ---
+      // --- Interruption detection with direction ---
       const bothSpeaking = tutorSpeaking && studentSpeaking;
       if (bothSpeaking && !bothSpeakingRef.current) {
         interruptionTimesRef.current.push(now);
+        // Determine who interrupted: if student was already speaking and tutor just started
+        const prev = prevSpeakingRef.current;
+        if (prev.student && !prev.tutor) {
+          tutorInterruptionTimesRef.current.push(now);
+        }
       }
       bothSpeakingRef.current = bothSpeaking;
+      prevSpeakingRef.current = { tutor: tutorSpeaking, student: studentSpeaking };
       interruptionTimesRef.current = interruptionTimesRef.current.filter(
         t => now - t <= 120_000
       );
+      tutorInterruptionTimesRef.current = tutorInterruptionTimesRef.current.filter(
+        t => now - t <= 120_000
+      );
       const recentInterruptions = interruptionTimesRef.current.length;
+      const recentTutorInterruptions = tutorInterruptionTimesRef.current.length;
 
       // --- Compute talk time balance ---
       const localAudio = local.getCumulativeMs();
@@ -168,10 +207,13 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
         studentSilenceMs: studentSilenceMsRef.current,
         studentGaze,
         studentGazeDuration: lowGazeDurationRef.current,
+        tutorGaze,
+        tutorGazeDuration: tutorLowGazeDurationRef.current,
         tutorTalkPercent,
         sessionMs,
         energyDrop,
         recentInterruptions,
+        recentTutorInterruptions,
       };
 
       for (const rule of NUDGE_RULES) {

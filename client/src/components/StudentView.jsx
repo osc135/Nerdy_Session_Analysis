@@ -23,7 +23,9 @@ function StudentView() {
     setMuted(!muted);
   };
 
-  // When tutor ends the session, save data and redirect to report
+  const [sessionEnded, setSessionEnded] = useState(false);
+
+  // When tutor ends the session, save data and show ended screen
   useEffect(() => {
     if (connectionState === 'ended' && !saving) {
       setSaving(true);
@@ -35,9 +37,9 @@ function StudentView() {
         body: JSON.stringify(data),
       })
         .catch(err => console.error('Failed to save session data:', err))
-        .finally(() => navigate(`/report/${sessionId}`));
+        .finally(() => setSessionEnded(true));
     }
-  }, [connectionState, saving, disconnect, navigate, sessionId]);
+  }, [connectionState, saving, disconnect, sessionId]);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -115,6 +117,20 @@ function StudentView() {
     }
   }, [remoteStream]);
 
+  if (sessionEnded) {
+    return (
+      <div style={styles.endedContainer}>
+        <div style={styles.endedCard}>
+          <h2 style={styles.endedTitle}>Session Ended</h2>
+          <p style={styles.endedText}>Thanks for participating! Your tutor will review the session analytics.</p>
+          <button style={styles.endedBtn} onClick={() => navigate('/dashboard')}>
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
       {/* Top bar */}
@@ -124,7 +140,7 @@ function StudentView() {
         <span style={styles.timer}>{formatTime(elapsed)}</span>
         <span style={{
           ...styles.status,
-          color: connectionState === 'connected' ? '#3fb950' : '#f0883e',
+          color: connectionState === 'connected' ? '#6ee7a0' : '#e8985a',
         }}>
           {connectionState}
         </span>
@@ -163,42 +179,46 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '1rem',
-    marginBottom: '1rem',
+    marginBottom: '0.75rem',
     flexShrink: 0,
   },
   heading: {
     margin: 0,
-    fontSize: '1.1rem',
+    fontSize: '1rem',
+    fontWeight: 600,
+    color: '#e0e4ea',
   },
   sessionId: {
-    color: '#8b949e',
+    color: '#6b7280',
     fontSize: '0.8rem',
   },
   timer: {
-    color: '#e6edf3',
+    color: '#d1d5db',
     fontSize: '0.9rem',
     fontWeight: 600,
     fontVariantNumeric: 'tabular-nums',
   },
   status: {
     marginLeft: 'auto',
-    fontSize: '0.8rem',
+    fontSize: '0.78rem',
     fontWeight: 600,
+    letterSpacing: '0.02em',
   },
   muteBtn: {
-    background: '#21262d',
-    color: '#c9d1d9',
-    border: '1px solid #30363d',
+    background: '#1e232d',
+    color: '#9ca3af',
+    border: '1px solid #252a33',
     borderRadius: '6px',
     padding: '0.4rem 1rem',
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
     fontWeight: 600,
     cursor: 'pointer',
+    transition: 'background 0.15s, border-color 0.15s',
   },
   muteBtnActive: {
-    background: '#f8514933',
-    color: '#f85149',
-    borderColor: '#f85149',
+    background: '#3b1a1a',
+    color: '#f08080',
+    borderColor: '#5c2a2a',
   },
   videos: {
     flex: 1,
@@ -210,19 +230,19 @@ const styles = {
   videoBox: {
     flex: 1,
     position: 'relative',
-    background: '#161b22',
-    borderRadius: '8px',
+    background: '#181c24',
+    borderRadius: '10px',
     overflow: 'hidden',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
     minHeight: 0,
   },
   localVideoBox: {
     flex: 1,
     position: 'relative',
-    background: '#161b22',
-    borderRadius: '8px',
+    background: '#181c24',
+    borderRadius: '10px',
     overflow: 'hidden',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
     minHeight: 0,
   },
   video: {
@@ -235,10 +255,50 @@ const styles = {
     position: 'absolute',
     bottom: '8px',
     left: '8px',
-    background: 'rgba(0,0,0,0.6)',
-    padding: '2px 8px',
-    borderRadius: '4px',
-    fontSize: '0.8rem',
+    background: 'rgba(0,0,0,0.5)',
+    padding: '3px 10px',
+    borderRadius: '5px',
+    fontSize: '0.78rem',
+    color: '#b0b8c4',
+  },
+  endedContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh',
+    padding: '2rem',
+  },
+  endedCard: {
+    background: '#181c24',
+    borderRadius: '14px',
+    padding: '3rem',
+    maxWidth: '440px',
+    width: '100%',
+    border: '1px solid #252a33',
+    textAlign: 'center',
+  },
+  endedTitle: {
+    fontSize: '1.4rem',
+    fontWeight: 600,
+    color: '#e0e4ea',
+    marginBottom: '0.75rem',
+  },
+  endedText: {
+    color: '#6b7280',
+    fontSize: '0.92rem',
+    lineHeight: 1.5,
+    marginBottom: '1.5rem',
+  },
+  endedBtn: {
+    background: '#2d7a4a',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '0.75rem 1.5rem',
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'background 0.15s',
   },
 };
 

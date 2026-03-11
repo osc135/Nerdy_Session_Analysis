@@ -7,6 +7,7 @@ import { useNudgeEngine } from './useNudgeEngine';
 function makeLocalMetrics(overrides = {}) {
   return {
     isSpeaking: false,
+    gazeScore: 80,
     getCumulativeMs: () => ({ speakingMs: 0, totalMs: 0 }),
     ...overrides,
   };
@@ -33,7 +34,7 @@ function makeProps(overrides = {}) {
 }
 
 const CHECK_INTERVAL = 2000;
-const COOLDOWN_MS = 5 * 60 * 1000;
+const COOLDOWN_MS = 2 * 60 * 1000;
 
 // Advance time and flush React state updates
 function advanceTime(ms) {

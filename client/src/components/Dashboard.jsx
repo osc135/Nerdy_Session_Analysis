@@ -91,8 +91,11 @@ function Dashboard() {
               {sessions.map((s) => (
                 <div
                   key={s.sessionCode}
-                  style={styles.sessionRow}
-                  onClick={() => navigate(`/report/${s.sessionCode}`)}
+                  style={{
+                    ...styles.sessionRow,
+                    cursor: s.role === 'tutor' ? 'pointer' : 'default',
+                  }}
+                  onClick={() => s.role === 'tutor' && navigate(`/report/${s.sessionCode}`)}
                 >
                   <div style={styles.sessionInfo}>
                     <span style={styles.sessionCode}>{s.sessionCode}</span>
@@ -103,7 +106,7 @@ function Dashboard() {
                     <span style={styles.sessionDuration}>{getDuration(s.createdAt, s.endedAt)}</span>
                     <span style={{
                       ...styles.mergedBadge,
-                      color: s.merged ? '#3fb950' : '#8b949e',
+                      color: s.merged ? '#6ee7a0' : '#6b7280',
                     }}>
                       {s.merged ? 'Complete' : 'Partial'}
                     </span>
@@ -129,13 +132,14 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '1rem 2rem',
-    borderBottom: '1px solid #30363d',
-    background: '#161b22',
+    borderBottom: '1px solid #252a33',
+    background: '#181c24',
   },
   title: {
-    fontSize: '1.2rem',
+    fontSize: '1.1rem',
     fontWeight: 600,
     margin: 0,
+    color: '#e0e4ea',
   },
   userInfo: {
     display: 'flex',
@@ -143,17 +147,18 @@ const styles = {
     gap: '0.75rem',
   },
   name: {
-    fontSize: '0.9rem',
-    color: '#c9d1d9',
+    fontSize: '0.88rem',
+    color: '#9ca3af',
   },
   logoutBtn: {
-    background: '#21262d',
-    color: '#c9d1d9',
-    border: '1px solid #30363d',
+    background: '#1e232d',
+    color: '#9ca3af',
+    border: '1px solid #252a33',
     borderRadius: '6px',
     padding: '0.4rem 0.75rem',
     fontSize: '0.8rem',
     cursor: 'pointer',
+    transition: 'background 0.15s',
   },
   content: {
     flex: 1,
@@ -163,31 +168,33 @@ const styles = {
     width: '100%',
   },
   welcomeCard: {
-    background: '#161b22',
-    borderRadius: '12px',
+    background: '#181c24',
+    borderRadius: '14px',
     padding: '2rem',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
     marginBottom: '1.5rem',
   },
   welcomeTitle: {
-    fontSize: '1.4rem',
+    fontSize: '1.3rem',
     fontWeight: 600,
     marginBottom: '0.5rem',
+    color: '#e0e4ea',
   },
   welcomeText: {
-    color: '#8b949e',
+    color: '#6b7280',
     marginBottom: '1.5rem',
-    fontSize: '0.95rem',
+    fontSize: '0.92rem',
   },
   startBtn: {
     padding: '0.75rem 1.5rem',
     borderRadius: '8px',
     border: 'none',
-    background: '#238636',
+    background: '#2d7a4a',
     color: 'white',
-    fontSize: '1rem',
+    fontSize: '0.95rem',
     fontWeight: 600,
     cursor: 'pointer',
+    transition: 'background 0.15s',
   },
   statsRow: {
     display: 'flex',
@@ -196,38 +203,40 @@ const styles = {
   },
   statCard: {
     flex: 1,
-    background: '#161b22',
-    borderRadius: '12px',
+    background: '#181c24',
+    borderRadius: '14px',
     padding: '1.25rem',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: '0.25rem',
   },
   statValue: {
-    fontSize: '1.8rem',
+    fontSize: '1.7rem',
     fontWeight: 700,
-    color: '#e6edf3',
+    color: '#e0e4ea',
+    fontVariantNumeric: 'tabular-nums',
   },
   statLabel: {
-    fontSize: '0.8rem',
-    color: '#8b949e',
+    fontSize: '0.78rem',
+    color: '#6b7280',
   },
   section: {
-    background: '#161b22',
-    borderRadius: '12px',
+    background: '#181c24',
+    borderRadius: '14px',
     padding: '1.5rem',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
   },
   sectionTitle: {
-    fontSize: '1.1rem',
+    fontSize: '1rem',
     fontWeight: 600,
     marginBottom: '1rem',
+    color: '#e0e4ea',
   },
   placeholder: {
-    color: '#8b949e',
-    fontSize: '0.9rem',
+    color: '#6b7280',
+    fontSize: '0.88rem',
   },
   sessionList: {
     display: 'flex',
@@ -239,11 +248,11 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '0.75rem 1rem',
-    background: '#0d1117',
+    background: '#13161b',
     borderRadius: '8px',
-    border: '1px solid #30363d',
+    border: '1px solid #252a33',
     cursor: 'pointer',
-    transition: 'border-color 0.2s',
+    transition: 'border-color 0.15s, background 0.15s',
   },
   sessionInfo: {
     display: 'flex',
@@ -252,17 +261,18 @@ const styles = {
   },
   sessionCode: {
     fontFamily: 'monospace',
-    fontSize: '0.9rem',
-    color: '#58a6ff',
+    fontSize: '0.88rem',
+    color: '#7ab8e0',
   },
   roleBadge: (role) => ({
-    fontSize: '0.7rem',
+    fontSize: '0.68rem',
     fontWeight: 600,
     textTransform: 'uppercase',
     padding: '2px 8px',
     borderRadius: '10px',
-    background: role === 'tutor' ? '#238636' + '33' : '#1f6feb' + '33',
-    color: role === 'tutor' ? '#3fb950' : '#58a6ff',
+    background: role === 'tutor' ? '#2d7a4a22' : '#2b5ea622',
+    color: role === 'tutor' ? '#6ee7a0' : '#7ab8e0',
+    letterSpacing: '0.03em',
   }),
   sessionMeta: {
     display: 'flex',
@@ -270,16 +280,16 @@ const styles = {
     gap: '1.5rem',
   },
   sessionDate: {
-    fontSize: '0.85rem',
-    color: '#8b949e',
+    fontSize: '0.82rem',
+    color: '#6b7280',
   },
   sessionDuration: {
-    fontSize: '0.85rem',
-    color: '#c9d1d9',
+    fontSize: '0.82rem',
+    color: '#9ca3af',
     fontWeight: 500,
   },
   mergedBadge: {
-    fontSize: '0.75rem',
+    fontSize: '0.72rem',
     fontWeight: 600,
   },
 };

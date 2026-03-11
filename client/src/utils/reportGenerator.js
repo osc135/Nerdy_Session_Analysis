@@ -11,16 +11,17 @@ export function generateReport(sessionData) {
   const eyeContact = computeEyeContactSummary(tutorSnapshots, studentSnapshots);
   const interruptions = computeInterruptionSummary(tutorSnapshots);
   const energy = computeEnergySummary(tutorSnapshots, studentSnapshots);
-  const engagementScore = computeEngagementScore({ talkTime, eyeContact, interruptions, energy });
+  const mutualAttention = computeMutualAttention(tutorSnapshots);
+  const engagementScore = computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention });
 
   return {
     sessionId,
     duration,
     durationMinutes: Math.round(duration / 60000),
-    summary: { talkTime, eyeContact, interruptions, energy, engagementScore },
+    summary: { talkTime, eyeContact, interruptions, energy, mutualAttention, engagementScore },
     keyMoments: findKeyMoments(tutorSnapshots, studentSnapshots),
     nudgeLog: tutor?.nudges || [],
-    recommendations: generateRecommendations({ talkTime, eyeContact, interruptions, energy }, tutor?.nudges || []),
+    recommendations: generateRecommendations({ talkTime, eyeContact, interruptions, energy, mutualAttention }, tutor?.nudges || []),
   };
 }
 
@@ -79,20 +80,54 @@ function computeEnergySummary(tutorSnaps) {
   };
 }
 
+function computeMutualAttention(tutorSnaps) {
+  if (tutorSnaps.length === 0) return { percent: 0 };
+
+  let mutualFrames = 0;
+
+  for (const s of tutorSnaps) {
+    const tutorGaze = s.tutor?.gazeScore ?? 0;
+    const studentGaze = s.student?.gazeScore ?? 0;
+    if (tutorGaze >= 50 && studentGaze >= 50) {
+      mutualFrames++;
+    }
+  }
+
+  return {
+    percent: Math.round((mutualFrames / tutorSnaps.length) * 100),
+  };
+}
+
 // ─── Tier 2: Stateful scanning ──────────────────────────────────────
 
 function computeInterruptionSummary(tutorSnaps) {
-  if (tutorSnaps.length === 0) return { total: 0, perMinute: 0 };
+  if (tutorSnaps.length === 0) return { total: 0, perMinute: 0, tutorInitiated: 0, studentInitiated: 0 };
 
   let total = 0;
+  let tutorInitiated = 0;
+  let studentInitiated = 0;
   let wasBothSpeaking = false;
+  let prevTutorSpeaking = false;
+  let prevStudentSpeaking = false;
 
   for (const s of tutorSnaps) {
-    const bothSpeaking = !!(s.tutor?.isSpeaking && s.student?.isSpeaking);
+    const tutorSpeaking = !!s.tutor?.isSpeaking;
+    const studentSpeaking = !!s.student?.isSpeaking;
+    const bothSpeaking = tutorSpeaking && studentSpeaking;
+
     if (bothSpeaking && !wasBothSpeaking) {
       total++;
+      // Who started speaking into the other's turn?
+      if (prevStudentSpeaking && !prevTutorSpeaking) {
+        tutorInitiated++;
+      } else if (prevTutorSpeaking && !prevStudentSpeaking) {
+        studentInitiated++;
+      }
     }
+
     wasBothSpeaking = bothSpeaking;
+    prevTutorSpeaking = tutorSpeaking;
+    prevStudentSpeaking = studentSpeaking;
   }
 
   const first = tutorSnaps[0];
@@ -100,7 +135,7 @@ function computeInterruptionSummary(tutorSnaps) {
   const durationMin = Math.max((last.elapsed - first.elapsed) / 60_000, 1 / 60);
   const perMinute = total > 0 ? Math.round((total / durationMin) * 10) / 10 : 0;
 
-  return { total, perMinute };
+  return { total, perMinute, tutorInitiated, studentInitiated };
 }
 
 function findKeyMoments(tutorSnaps) {
@@ -132,6 +167,34 @@ function findKeyMoments(tutorSnaps) {
         type: 'attention_drop',
         elapsed: lowGazeStart,
         description: `Student attention dropped for ${Math.round((last.elapsed - lowGazeStart) / 1000)}s`,
+      });
+    }
+  }
+
+  // Detect sustained low tutor gaze (<30 for 30s+)
+  let tutorLowGazeStart = null;
+  for (const s of tutorSnaps) {
+    const gaze = s.tutor?.gazeScore ?? 100;
+    if (gaze < 30) {
+      if (tutorLowGazeStart === null) tutorLowGazeStart = s.elapsed;
+    } else {
+      if (tutorLowGazeStart !== null && s.elapsed - tutorLowGazeStart >= 30_000) {
+        moments.push({
+          type: 'tutor_attention_drop',
+          elapsed: tutorLowGazeStart,
+          description: `Tutor looked away for ${Math.round((s.elapsed - tutorLowGazeStart) / 1000)}s`,
+        });
+      }
+      tutorLowGazeStart = null;
+    }
+  }
+  if (tutorLowGazeStart !== null) {
+    const last = tutorSnaps[tutorSnaps.length - 1];
+    if (last.elapsed - tutorLowGazeStart >= 30_000) {
+      moments.push({
+        type: 'tutor_attention_drop',
+        elapsed: tutorLowGazeStart,
+        description: `Tutor looked away for ${Math.round((last.elapsed - tutorLowGazeStart) / 1000)}s`,
       });
     }
   }
@@ -169,25 +232,33 @@ function findKeyMoments(tutorSnaps) {
 
 // ─── Tier 3: Composite / derived ────────────────────────────────────
 
-function computeEngagementScore({ talkTime, eyeContact, interruptions, energy }) {
+function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention }) {
   if (eyeContact.student === 0 && energy.student === 0) return 0;
 
-  // Eye contact: student gaze as percentage (weight 0.3)
-  const gazeScore = eyeContact.student / 100;
+  // Student eye contact (weight 0.2)
+  const studentGazeScore = eyeContact.student / 100;
 
-  // Talk balance: perfect at 50/50, worst at 100/0 (weight 0.25)
+  // Tutor eye contact (weight 0.1)
+  const tutorGazeScore = eyeContact.tutor / 100;
+
+  // Mutual attention bonus (weight 0.1)
+  const mutualScore = (mutualAttention?.percent || 0) / 100;
+
+  // Talk balance: perfect at 50/50, worst at 100/0 (weight 0.2)
   const balanceScore = 1 - Math.abs(talkTime.tutor - 50) / 50;
 
-  // Energy: student energy as percentage (weight 0.25)
-  const energyScore = energy.student / 100;
+  // Energy: average of both (weight 0.2)
+  const energyScore = ((energy.student + energy.tutor) / 2) / 100;
 
   // Interaction quality: penalize high interruption rate (weight 0.2)
   const interactionScore = Math.max(1 - interruptions.perMinute / 3, 0);
 
   const weighted =
-    gazeScore * 0.3 +
-    balanceScore * 0.25 +
-    energyScore * 0.25 +
+    studentGazeScore * 0.2 +
+    tutorGazeScore * 0.1 +
+    mutualScore * 0.1 +
+    balanceScore * 0.2 +
+    energyScore * 0.2 +
     interactionScore * 0.2;
 
   return Math.round(weighted * 100);
@@ -195,7 +266,7 @@ function computeEngagementScore({ talkTime, eyeContact, interruptions, energy })
 
 function generateRecommendations(summaries, nudges) {
   const recs = [];
-  const { talkTime, eyeContact, interruptions, energy } = summaries;
+  const { talkTime, eyeContact, interruptions, energy, mutualAttention } = summaries;
 
   if (talkTime.tutor > 70) {
     recs.push({
@@ -204,9 +275,30 @@ function generateRecommendations(summaries, nudges) {
     });
   }
 
+  if (eyeContact.tutor < 50) {
+    recs.push({
+      text: 'Your eye contact was low. Looking at the camera more helps the student feel connected and engaged.',
+      priority: 'high',
+    });
+  }
+
   if (eyeContact.student < 50) {
     recs.push({
       text: 'Student eye contact was low. Consider using screen sharing or visual aids to keep their focus.',
+      priority: 'high',
+    });
+  }
+
+  if ((mutualAttention?.percent || 0) < 30) {
+    recs.push({
+      text: 'Mutual attention was low — you and the student rarely looked at each other at the same time. Try checking in more frequently.',
+      priority: 'medium',
+    });
+  }
+
+  if (interruptions.tutorInitiated > interruptions.studentInitiated && interruptions.tutorInitiated >= 3) {
+    recs.push({
+      text: 'You interrupted the student more often than they interrupted you. Give more wait time after they start speaking.',
       priority: 'high',
     });
   }
@@ -228,6 +320,13 @@ function generateRecommendations(summaries, nudges) {
   if (energy.student < 30) {
     recs.push({
       text: 'Student energy was low throughout. Consider shorter sessions or more interactive activities.',
+      priority: 'medium',
+    });
+  }
+
+  if (energy.tutor < 30) {
+    recs.push({
+      text: 'Your energy was low this session. Varying your tone and pace can help keep both you and the student engaged.',
       priority: 'medium',
     });
   }

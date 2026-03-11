@@ -12,55 +12,55 @@ function MetricBar({ label, value, color }) {
   );
 }
 
-function TalkTimeBalance({ tutorPercent, studentPercent }) {
+function MutualAttentionIndicator({ active }) {
   return (
-    <div style={styles.balanceContainer}>
-      <div style={styles.balanceLabels}>
-        <span style={styles.balanceLabel}>Tutor {tutorPercent}%</span>
-        <span style={styles.balanceLabel}>Student {studentPercent}%</span>
+    <div style={styles.mutualAttention}>
+      <div style={styles.metricHeader}>
+        <span style={styles.metricLabel}>Mutual Attention</span>
+        <span style={{
+          ...styles.metricValue,
+          color: active ? '#6ee7a0' : '#6b7280',
+        }}>
+          {active ? 'Active' : 'No'}
+        </span>
       </div>
-      <div style={styles.balanceTrack}>
-        <div style={{
-          ...styles.balanceFill,
-          width: `${tutorPercent}%`,
-          background: '#f0883e',
-          borderRadius: studentPercent === 0 ? '3px' : '3px 0 0 3px',
-        }} />
-        <div style={{
-          ...styles.balanceFill,
-          width: `${studentPercent}%`,
-          background: '#58a6ff',
-          borderRadius: tutorPercent === 0 ? '3px' : '0 3px 3px 0',
-        }} />
-      </div>
+      <div style={{
+        ...styles.mutualDot,
+        background: active ? '#6ee7a0' : '#252a33',
+        boxShadow: active ? '0 0 10px #6ee7a044' : 'none',
+      }} />
     </div>
   );
 }
 
 function MetricsSidebar({ metrics }) {
-  const { eyeContact = 0, tutorTalkTime = 0, studentTalkTime = 0, energy = 0 } = metrics || {};
+  const {
+    tutorEyeContact = 0, tutorTalkTime = 0, tutorEnergy = 0,
+    studentEyeContact = 0, studentTalkTime = 0, studentEnergy = 0,
+    mutualAttention = false,
+  } = metrics || {};
 
   return (
     <div style={styles.sidebar}>
       <h3 style={styles.title}>Live Metrics</h3>
 
       <div style={styles.section}>
-        <span style={styles.sectionLabel}>Student Engagement</span>
-        <MetricBar label="Eye Contact" value={eyeContact} color="#3fb950" />
-        <MetricBar label="Energy" value={energy} color="#a371f7" />
+        <span style={styles.sectionLabel}>You (Tutor)</span>
+        <MetricBar label="Eye Contact" value={tutorEyeContact} color="#e8985a" />
+        <MetricBar label="Talk Time" value={tutorTalkTime} color="#e8985a" />
+        <MetricBar label="Energy" value={tutorEnergy} color="#c4a5e0" />
       </div>
 
       <div style={styles.section}>
-        <span style={styles.sectionLabel}>Talk Time Balance</span>
-        <TalkTimeBalance tutorPercent={tutorTalkTime} studentPercent={studentTalkTime} />
+        <span style={styles.sectionLabel}>Student</span>
+        <MetricBar label="Eye Contact" value={studentEyeContact} color="#6ee7a0" />
+        <MetricBar label="Talk Time" value={studentTalkTime} color="#7ab8e0" />
+        <MetricBar label="Energy" value={studentEnergy} color="#a78bde" />
       </div>
 
-      <div style={styles.sessionInfo}>
+      <div style={styles.section}>
         <span style={styles.sectionLabel}>Session</span>
-        <div style={styles.infoRow}>
-          <span style={styles.infoLabel}>Status</span>
-          <span style={styles.infoValue}>Active</span>
-        </div>
+        <MutualAttentionIndicator active={mutualAttention} />
       </div>
     </div>
   );
@@ -69,35 +69,37 @@ function MetricsSidebar({ metrics }) {
 const styles = {
   sidebar: {
     width: '280px',
-    background: '#161b22',
-    borderLeft: '1px solid #30363d',
+    background: '#181c24',
+    borderLeft: '1px solid #252a33',
     padding: '1.25rem',
     overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
-    gap: '1.25rem',
+    gap: '1.5rem',
   },
   title: {
-    fontSize: '1rem',
+    fontSize: '0.95rem',
     fontWeight: 600,
     margin: 0,
+    color: '#e0e4ea',
+    letterSpacing: '0.01em',
   },
   section: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.6rem',
+    gap: '0.75rem',
   },
   sectionLabel: {
-    fontSize: '0.75rem',
-    color: '#8b949e',
+    fontSize: '0.7rem',
+    color: '#6b7280',
     textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    letterSpacing: '0.08em',
     fontWeight: 600,
   },
   metricRow: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px',
+    gap: '5px',
   },
   metricHeader: {
     display: 'flex',
@@ -105,63 +107,36 @@ const styles = {
     alignItems: 'center',
   },
   metricLabel: {
-    fontSize: '0.85rem',
-    color: '#c9d1d9',
+    fontSize: '0.82rem',
+    color: '#9ca3af',
   },
   metricValue: {
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
     fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
   },
   barTrack: {
-    height: '6px',
-    background: '#21262d',
+    height: '5px',
+    background: '#1e232d',
     borderRadius: '3px',
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
     borderRadius: '3px',
-    transition: 'width 0.5s ease',
+    transition: 'width 0.6s ease',
+    opacity: 0.85,
   },
-  balanceContainer: {
+  mutualAttention: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px',
+    gap: '6px',
   },
-  balanceLabels: {
-    display: 'flex',
-    justifyContent: 'space-between',
-  },
-  balanceLabel: {
-    fontSize: '0.8rem',
-    color: '#8b949e',
-  },
-  balanceTrack: {
-    display: 'flex',
-    height: '8px',
-    background: '#21262d',
+  mutualDot: {
+    width: '100%',
+    height: '5px',
     borderRadius: '3px',
-    overflow: 'hidden',
-  },
-  balanceFill: {
-    height: '100%',
-    transition: 'width 0.5s ease',
-  },
-  sessionInfo: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  infoRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '0.85rem',
-  },
-  infoLabel: {
-    color: '#8b949e',
-  },
-  infoValue: {
-    color: '#c9d1d9',
+    transition: 'background 0.6s ease, box-shadow 0.6s ease',
   },
 };
 

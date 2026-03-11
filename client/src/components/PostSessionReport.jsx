@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { generateReport } from '../utils/reportGenerator';
 
 function PostSessionReport() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,7 +17,9 @@ function PostSessionReport() {
 
     async function fetchReport() {
       try {
-        const res = await fetch(`/api/sessions/${sessionId}/report`);
+        const res = await fetch(`/api/sessions/${sessionId}/report`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) throw new Error('Session not found');
         const session = await res.json();
 
@@ -66,8 +70,8 @@ function PostSessionReport() {
   }
 
   const { summary, keyMoments, nudgeLog, recommendations } = report;
-  const scoreColor = summary.engagementScore >= 70 ? '#3fb950'
-    : summary.engagementScore >= 40 ? '#d29922' : '#f85149';
+  const scoreColor = summary.engagementScore >= 70 ? '#6ee7a0'
+    : summary.engagementScore >= 40 ? '#d4a04a' : '#f08080';
 
   return (
     <div style={styles.container}>
@@ -81,33 +85,64 @@ function PostSessionReport() {
           <button style={styles.homeBtn} onClick={() => navigate('/')}>New Session</button>
         </div>
 
-        {/* Summary Cards */}
-        <div style={styles.cardGrid}>
-          <SummaryCard
-            label="Engagement Score"
-            value={`${summary.engagementScore}`}
-            unit="%"
-            color={scoreColor}
-            large
-          />
-          <SummaryCard
-            label="Student Eye Contact"
-            value={`${summary.eyeContact.student}`}
-            unit="%"
-            color="#3fb950"
-          />
-          <SummaryCard
-            label="Student Energy"
-            value={`${summary.energy.student}`}
-            unit="%"
-            color="#a371f7"
-          />
-          <SummaryCard
-            label="Interruptions"
-            value={`${summary.interruptions.total}`}
-            unit={` (${summary.interruptions.perMinute}/min)`}
-            color="#f0883e"
-          />
+        {/* Engagement Score — hero card */}
+        <div style={styles.heroCard}>
+          <span style={styles.heroLabel}>Engagement Score</span>
+          <div style={styles.heroValueRow}>
+            <span style={{ ...styles.heroValue, color: scoreColor }}>{summary.engagementScore}</span>
+            <span style={{ ...styles.heroUnit, color: scoreColor }}>%</span>
+          </div>
+        </div>
+
+        {/* Tutor Metrics */}
+        <div style={styles.section}>
+          <h3 style={styles.sectionTitle}>Tutor</h3>
+          <div style={styles.cardGrid}>
+            <MetricCard label="Eye Contact" value={summary.eyeContact.tutor} unit="%" color="#e8985a" />
+            <MetricCard label="Talk Time" value={summary.talkTime.tutor} unit="%" color="#e8985a" />
+            <MetricCard label="Energy" value={summary.energy.tutor} unit="%" color="#c4a5e0" />
+            <MetricCard
+              label="Interruptions Made"
+              value={summary.interruptions.tutorInitiated}
+              unit=""
+              color="#e8985a"
+            />
+          </div>
+        </div>
+
+        {/* Student Metrics */}
+        <div style={styles.section}>
+          <h3 style={styles.sectionTitle}>Student</h3>
+          <div style={styles.cardGrid}>
+            <MetricCard label="Eye Contact" value={summary.eyeContact.student} unit="%" color="#6ee7a0" />
+            <MetricCard label="Talk Time" value={summary.talkTime.student} unit="%" color="#7ab8e0" />
+            <MetricCard label="Energy" value={summary.energy.student} unit="%" color="#a78bde" />
+            <MetricCard
+              label="Interruptions Made"
+              value={summary.interruptions.studentInitiated}
+              unit=""
+              color="#7ab8e0"
+            />
+          </div>
+        </div>
+
+        {/* Session Metrics */}
+        <div style={styles.section}>
+          <h3 style={styles.sectionTitle}>Session</h3>
+          <div style={styles.cardGrid}>
+            <MetricCard
+              label="Mutual Attention"
+              value={summary.mutualAttention.percent}
+              unit="%"
+              color="#6ee7a0"
+            />
+            <MetricCard
+              label="Total Interruptions"
+              value={summary.interruptions.total}
+              unit={` (${summary.interruptions.perMinute}/min)`}
+              color="#d4a04a"
+            />
+          </div>
         </div>
 
         {/* Talk Time Balance */}
@@ -115,21 +150,23 @@ function PostSessionReport() {
           <h3 style={styles.sectionTitle}>Talk Time Balance</h3>
           <div style={styles.card}>
             <div style={styles.balanceLabels}>
-              <span style={styles.balanceLabel}>Tutor {summary.talkTime.tutor}%</span>
-              <span style={styles.balanceLabel}>Student {summary.talkTime.student}%</span>
+              <span style={styles.balanceLabelLeft}>Tutor {summary.talkTime.tutor}%</span>
+              <span style={styles.balanceLabelRight}>Student {summary.talkTime.student}%</span>
             </div>
             <div style={styles.balanceTrack}>
               <div style={{
                 height: '100%',
                 width: `${summary.talkTime.tutor}%`,
-                background: '#f0883e',
+                background: '#e8985a',
                 borderRadius: summary.talkTime.student === 0 ? '4px' : '4px 0 0 4px',
+                opacity: 0.8,
               }} />
               <div style={{
                 height: '100%',
                 width: `${summary.talkTime.student}%`,
-                background: '#58a6ff',
+                background: '#7ab8e0',
                 borderRadius: summary.talkTime.tutor === 0 ? '4px' : '0 4px 4px 0',
+                opacity: 0.8,
               }} />
             </div>
           </div>
@@ -141,14 +178,19 @@ function PostSessionReport() {
             <h3 style={styles.sectionTitle}>Key Moments</h3>
             <div style={styles.card}>
               {keyMoments.map((moment, i) => (
-                <div key={i} style={styles.momentRow}>
+                <div key={i} style={{
+                  ...styles.momentRow,
+                  borderBottom: i < keyMoments.length - 1 ? '1px solid #1e232d' : 'none',
+                }}>
                   <span style={styles.momentTime}>{formatMs(moment.elapsed)}</span>
                   <span style={{
                     ...styles.momentBadge,
-                    background: moment.type === 'attention_drop' ? '#f8514933' : '#d2992233',
-                    color: moment.type === 'attention_drop' ? '#f85149' : '#d29922',
+                    background: moment.type.includes('attention') ? '#f0808022' : '#d4a04a22',
+                    color: moment.type.includes('attention') ? '#f08080' : '#d4a04a',
                   }}>
-                    {moment.type === 'attention_drop' ? 'Attention Drop' : 'Silence'}
+                    {moment.type === 'attention_drop' ? 'Student Attention'
+                      : moment.type === 'tutor_attention_drop' ? 'Tutor Attention'
+                      : 'Silence'}
                   </span>
                   <span style={styles.momentDesc}>{moment.description}</span>
                 </div>
@@ -163,7 +205,10 @@ function PostSessionReport() {
             <h3 style={styles.sectionTitle}>Coaching Nudges ({nudgeLog.length})</h3>
             <div style={styles.card}>
               {nudgeLog.map((nudge, i) => (
-                <div key={i} style={styles.nudgeRow}>
+                <div key={i} style={{
+                  ...styles.nudgeRow,
+                  borderBottom: i < nudgeLog.length - 1 ? '1px solid #1e232d' : 'none',
+                }}>
                   <span style={styles.nudgeTime}>{nudge.timestamp}</span>
                   <span style={styles.nudgeType}>{nudge.type.replace(/_/g, ' ')}</span>
                   <span style={styles.nudgeMsg}>{nudge.message}</span>
@@ -179,10 +224,13 @@ function PostSessionReport() {
             <h3 style={styles.sectionTitle}>Recommendations</h3>
             <div style={styles.card}>
               {recommendations.map((rec, i) => (
-                <div key={i} style={styles.recRow}>
+                <div key={i} style={{
+                  ...styles.recRow,
+                  borderBottom: i < recommendations.length - 1 ? '1px solid #1e232d' : 'none',
+                }}>
                   <span style={{
                     ...styles.recPriority,
-                    color: rec.priority === 'high' ? '#f85149' : '#d29922',
+                    color: rec.priority === 'high' ? '#f08080' : '#d4a04a',
                   }}>
                     {rec.priority}
                   </span>
@@ -197,7 +245,7 @@ function PostSessionReport() {
         {recommendations.length === 0 && keyMoments.length === 0 && (
           <div style={styles.section}>
             <div style={{ ...styles.card, textAlign: 'center', padding: '2rem' }}>
-              <p style={{ color: '#3fb950', fontSize: '1.1rem', margin: 0 }}>
+              <p style={{ color: '#6ee7a0', fontSize: '1rem', margin: 0 }}>
                 Great session! No major issues detected.
               </p>
             </div>
@@ -208,18 +256,12 @@ function PostSessionReport() {
   );
 }
 
-function SummaryCard({ label, value, unit, color, large }) {
+function MetricCard({ label, value, unit, color }) {
   return (
-    <div style={{ ...styles.card, ...styles.summaryCard }}>
+    <div style={{ ...styles.card, ...styles.metricCard }}>
       <span style={styles.cardLabel}>{label}</span>
       <div style={styles.cardValueRow}>
-        <span style={{
-          ...styles.cardValue,
-          color,
-          fontSize: large ? '2.5rem' : '2rem',
-        }}>
-          {value}
-        </span>
+        <span style={{ ...styles.cardValue, color }}>{value}</span>
         <span style={{ ...styles.cardUnit, color }}>{unit}</span>
       </div>
     </div>
@@ -236,18 +278,18 @@ function formatMs(ms) {
 const styles = {
   container: {
     minHeight: '100vh',
-    background: '#0d1117',
-    color: '#c9d1d9',
+    color: '#d1d5db',
     display: 'flex',
     justifyContent: 'center',
     padding: '2rem',
   },
   content: {
-    maxWidth: '800px',
+    maxWidth: '820px',
     width: '100%',
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
+    paddingBottom: '3rem',
   },
   header: {
     display: 'flex',
@@ -256,55 +298,101 @@ const styles = {
   },
   title: {
     margin: 0,
-    fontSize: '1.5rem',
+    fontSize: '1.4rem',
     fontWeight: 600,
+    color: '#e0e4ea',
   },
   subtitle: {
     margin: '0.25rem 0 0',
-    color: '#8b949e',
-    fontSize: '0.9rem',
+    color: '#6b7280',
+    fontSize: '0.88rem',
   },
   homeBtn: {
-    background: '#21262d',
-    color: '#c9d1d9',
-    border: '1px solid #30363d',
+    background: '#1e232d',
+    color: '#9ca3af',
+    border: '1px solid #252a33',
     borderRadius: '6px',
     padding: '0.5rem 1rem',
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
     fontWeight: 600,
     cursor: 'pointer',
+    transition: 'background 0.15s',
   },
   loadingBox: {
     textAlign: 'center',
     marginTop: '20vh',
   },
   loadingText: {
-    fontSize: '1.3rem',
+    fontSize: '1.2rem',
     margin: 0,
+    color: '#e0e4ea',
   },
   loadingSub: {
-    color: '#8b949e',
+    color: '#6b7280',
     marginTop: '0.5rem',
   },
-  cardGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-    gap: '1rem',
+  heroCard: {
+    background: '#181c24',
+    border: '1px solid #252a33',
+    borderRadius: '14px',
+    padding: '1.75rem',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.5rem',
   },
-  card: {
-    background: '#161b22',
-    border: '1px solid #30363d',
-    borderRadius: '8px',
-    padding: '1rem',
+  heroLabel: {
+    fontSize: '0.7rem',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    fontWeight: 600,
   },
-  summaryCard: {
+  heroValueRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '2px',
+  },
+  heroValue: {
+    fontSize: '3rem',
+    fontWeight: 700,
+    lineHeight: 1,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  heroUnit: {
+    fontSize: '1.2rem',
+    fontWeight: 600,
+  },
+  section: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
   },
+  sectionTitle: {
+    margin: 0,
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    color: '#e0e4ea',
+  },
+  cardGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+    gap: '0.75rem',
+  },
+  card: {
+    background: '#181c24',
+    border: '1px solid #252a33',
+    borderRadius: '10px',
+    padding: '1rem',
+  },
+  metricCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.4rem',
+  },
   cardLabel: {
-    fontSize: '0.75rem',
-    color: '#8b949e',
+    fontSize: '0.7rem',
+    color: '#6b7280',
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
     fontWeight: 600,
@@ -315,21 +403,13 @@ const styles = {
     gap: '2px',
   },
   cardValue: {
+    fontSize: '1.8rem',
     fontWeight: 700,
     lineHeight: 1,
+    fontVariantNumeric: 'tabular-nums',
   },
   cardUnit: {
-    fontSize: '0.9rem',
-    fontWeight: 600,
-  },
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  sectionTitle: {
-    margin: 0,
-    fontSize: '1rem',
+    fontSize: '0.85rem',
     fontWeight: 600,
   },
   balanceLabels: {
@@ -337,14 +417,18 @@ const styles = {
     justifyContent: 'space-between',
     marginBottom: '0.5rem',
   },
-  balanceLabel: {
-    fontSize: '0.85rem',
-    color: '#8b949e',
+  balanceLabelLeft: {
+    fontSize: '0.82rem',
+    color: '#e8985a',
+  },
+  balanceLabelRight: {
+    fontSize: '0.82rem',
+    color: '#7ab8e0',
   },
   balanceTrack: {
     display: 'flex',
-    height: '10px',
-    background: '#21262d',
+    height: '8px',
+    background: '#1e232d',
     borderRadius: '4px',
     overflow: 'hidden',
   },
@@ -352,67 +436,68 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
-    padding: '0.5rem 0',
-    borderBottom: '1px solid #21262d',
+    padding: '0.6rem 0',
   },
   momentTime: {
-    fontSize: '0.85rem',
-    color: '#8b949e',
+    fontSize: '0.82rem',
+    color: '#6b7280',
     fontVariantNumeric: 'tabular-nums',
     minWidth: '3rem',
   },
   momentBadge: {
-    fontSize: '0.7rem',
+    fontSize: '0.68rem',
     fontWeight: 600,
     textTransform: 'uppercase',
-    padding: '2px 6px',
-    borderRadius: '4px',
+    padding: '2px 8px',
+    borderRadius: '5px',
     whiteSpace: 'nowrap',
+    letterSpacing: '0.02em',
   },
   momentDesc: {
     fontSize: '0.85rem',
-    color: '#c9d1d9',
+    color: '#9ca3af',
   },
   nudgeRow: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.25rem',
-    padding: '0.6rem 0',
-    borderBottom: '1px solid #21262d',
+    padding: '0.65rem 0',
   },
   nudgeTime: {
-    fontSize: '0.75rem',
-    color: '#8b949e',
+    fontSize: '0.72rem',
+    color: '#6b7280',
     fontVariantNumeric: 'tabular-nums',
   },
   nudgeType: {
-    fontSize: '0.7rem',
-    color: '#d29922',
+    fontSize: '0.68rem',
+    color: '#d4a04a',
     textTransform: 'uppercase',
     fontWeight: 600,
+    letterSpacing: '0.03em',
   },
   nudgeMsg: {
     fontSize: '0.85rem',
-    color: '#c9d1d9',
+    color: '#9ca3af',
+    lineHeight: 1.45,
   },
   recRow: {
     display: 'flex',
     gap: '0.75rem',
-    padding: '0.6rem 0',
-    borderBottom: '1px solid #21262d',
+    padding: '0.65rem 0',
     alignItems: 'flex-start',
   },
   recPriority: {
-    fontSize: '0.7rem',
+    fontSize: '0.68rem',
     fontWeight: 600,
     textTransform: 'uppercase',
     minWidth: '3.5rem',
     paddingTop: '2px',
+    letterSpacing: '0.03em',
   },
   recText: {
     fontSize: '0.85rem',
-    color: '#c9d1d9',
-    lineHeight: 1.4,
+    color: '#9ca3af',
+    lineHeight: 1.45,
   },
 };
 
