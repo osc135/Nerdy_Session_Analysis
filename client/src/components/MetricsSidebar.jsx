@@ -57,11 +57,32 @@ function MutualAttentionIndicator({ active }) {
   );
 }
 
+function AttentionDriftIndicator({ drift }) {
+  const isNA = drift === null || drift === undefined;
+  const drifting = !isNA && drift >= 65;
+  return (
+    <div style={styles.gazeRow}>
+      <div style={{
+        ...styles.gazeDot,
+        background: isNA ? '#1e232d' : drifting ? '#d4a04a' : '#252a33',
+        boxShadow: drifting ? '0 0 8px #d4a04a66' : 'none',
+      }} />
+      <span style={styles.metricLabel}>Attention Drift</span>
+      <span style={{
+        ...styles.gazeStatus,
+        color: isNA ? '#4b5563' : drifting ? '#d4a04a' : '#6b7280',
+      }}>
+        {isNA ? 'N/A' : drifting ? 'Drifting' : 'Focused'}
+      </span>
+    </div>
+  );
+}
+
 function MetricsSidebar({ metrics }) {
   const {
     tutorEyeContact = 0, tutorTalkTime = 0, tutorEnergy = 0,
     studentEyeContact, studentTalkTime, studentEnergy,
-    mutualAttention, hasStudent = false,
+    mutualAttention, attentionDrift, hasStudent = false,
   } = metrics || {};
 
   return (
@@ -87,6 +108,7 @@ function MetricsSidebar({ metrics }) {
       <div style={styles.section}>
         <span style={styles.sectionLabel}>Session</span>
         <MutualAttentionIndicator active={mutualAttention} />
+        <AttentionDriftIndicator drift={attentionDrift} />
       </div>
     </div>
   );

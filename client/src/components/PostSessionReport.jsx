@@ -92,6 +92,7 @@ function PostSessionReport() {
       studentTalk: s.student?.talkTimePercent != null ? Math.round(s.student.talkTimePercent) : null,
       tutorEnergy: Math.round((s.tutor?.energy ?? 0) * 100),
       studentEnergy: s.student?.energy != null ? Math.round(s.student.energy * 100) : null,
+      drift: s.tutor?.attentionDrift ?? null,
     }));
   }, [snapshots]);
 
@@ -193,6 +194,12 @@ function PostSessionReport() {
               unit={` (${summary.interruptions.perMinute}/min)`}
               color="#d4a04a"
             />}
+            {hasStudent && <MetricCard
+              label="Attention Drift"
+              value={summary.attentionDrift.average}
+              unit="%"
+              color={summary.attentionDrift.average < 40 ? '#6ee7a0' : summary.attentionDrift.average < 65 ? '#d4a04a' : '#f08080'}
+            />}
             <MetricCard
               label="Duration"
               value={report.durationMinutes}
@@ -257,11 +264,14 @@ function PostSessionReport() {
                   <span style={styles.momentTime}>{formatMs(moment.elapsed)}</span>
                   <span style={{
                     ...styles.momentBadge,
-                    background: moment.type.includes('attention') ? '#f0808022' : '#d4a04a22',
-                    color: moment.type.includes('attention') ? '#f08080' : '#d4a04a',
+                    background: moment.type === 'attention_drift' ? '#d4a04a22'
+                      : moment.type.includes('attention') ? '#f0808022' : '#d4a04a22',
+                    color: moment.type === 'attention_drift' ? '#d4a04a'
+                      : moment.type.includes('attention') ? '#f08080' : '#d4a04a',
                   }}>
                     {moment.type === 'attention_drop' ? 'Student Attention'
                       : moment.type === 'tutor_attention_drop' ? 'Tutor Attention'
+                      : moment.type === 'attention_drift' ? 'Attention Drift'
                       : 'Silence'}
                   </span>
                   <span style={styles.momentDesc}>{moment.description}</span>

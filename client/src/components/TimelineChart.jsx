@@ -109,12 +109,37 @@ function EnergyTimeline({ data }) {
   );
 }
 
+function AttentionDriftTimeline({ data }) {
+  return (
+    <div style={styles.chartContainer}>
+      <span style={styles.chartLabel}>Attention Drift</span>
+      <ResponsiveContainer width="100%" height={100}>
+        <LineChart data={data} margin={CHART_MARGIN}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1e232d" />
+          <XAxis
+            dataKey="elapsed"
+            tickFormatter={formatElapsed}
+            tick={{ fontSize: 10, fill: '#4b5563' }}
+            interval="preserveStartEnd"
+            stroke="#1e232d"
+          />
+          <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#4b5563' }} stroke="#1e232d" />
+          <Tooltip content={<CustomTooltip />} />
+          <Line type="monotone" dataKey="drift" name="Drift" stroke="#d4a04a" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function TimelineChart({ data }) {
+  const hasDrift = data.some(d => d.drift != null);
   return (
     <div style={styles.wrapper}>
       <EyeContactTimeline data={data} />
       <TalkTimeTimeline data={data} />
       <EnergyTimeline data={data} />
+      {hasDrift && <AttentionDriftTimeline data={data} />}
     </div>
   );
 }

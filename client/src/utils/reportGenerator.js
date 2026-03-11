@@ -25,6 +25,7 @@ export function generateReport(sessionData) {
   const interruptions = computeInterruptionSummary(tutorSnapshots);
   const energy = computeEnergySummary(tutorSnapshots, studentSnapshots);
   const mutualAttention = computeMutualAttention(tutorSnapshots);
+  const attentionDrift = computeAttentionDriftSummary(tutorSnapshots);
   const engagementScore = computeEngagementScore({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent, sessionType });
 
   return {
@@ -33,10 +34,10 @@ export function generateReport(sessionData) {
     duration,
     durationMinutes: Math.round(duration / 60000),
     hasStudent,
-    summary: { talkTime, eyeContact, interruptions, energy, mutualAttention, engagementScore },
+    summary: { talkTime, eyeContact, interruptions, energy, mutualAttention, attentionDrift, engagementScore },
     keyMoments: findKeyMoments(tutorSnapshots, studentSnapshots),
     nudgeLog: tutor?.nudges || [],
-    recommendations: generateRecommendations({ talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent, sessionType }, tutor?.nudges || []),
+    recommendations: generateRecommendations({ talkTime, eyeContact, interruptions, energy, mutualAttention, attentionDrift, hasStudent, sessionType }, tutor?.nudges || []),
     snapshots: tutorSnapshots,
   };
 }
@@ -111,6 +112,28 @@ function computeMutualAttention(tutorSnaps) {
 
   return {
     percent: Math.round((mutualFrames / tutorSnaps.length) * 100),
+  };
+}
+
+function computeAttentionDriftSummary(tutorSnaps) {
+  if (tutorSnaps.length === 0) return { average: 0, peakDrift: 0, driftPercent: 0 };
+
+  let sum = 0;
+  let peak = 0;
+  let driftFrames = 0;
+
+  for (const s of tutorSnaps) {
+    const drift = s.tutor?.attentionDrift;
+    if (drift == null) continue;
+    sum += drift;
+    if (drift > peak) peak = drift;
+    if (drift >= 65) driftFrames++;
+  }
+
+  return {
+    average: Math.round(sum / tutorSnaps.length),
+    peakDrift: peak,
+    driftPercent: Math.round((driftFrames / tutorSnaps.length) * 100),
   };
 }
 
@@ -243,6 +266,34 @@ function findKeyMoments(tutorSnaps) {
     }
   }
 
+  // Detect sustained attention drift >= 65 for 30s+
+  let driftStart = null;
+  for (const s of tutorSnaps) {
+    const drift = s.tutor?.attentionDrift ?? 0;
+    if (drift >= 65) {
+      if (driftStart === null) driftStart = s.elapsed;
+    } else {
+      if (driftStart !== null && s.elapsed - driftStart >= 30_000) {
+        moments.push({
+          type: 'attention_drift',
+          elapsed: driftStart,
+          description: `Student showed signs of disengagement for ${Math.round((s.elapsed - driftStart) / 1000)}s`,
+        });
+      }
+      driftStart = null;
+    }
+  }
+  if (driftStart !== null) {
+    const last = tutorSnaps[tutorSnaps.length - 1];
+    if (last.elapsed - driftStart >= 30_000) {
+      moments.push({
+        type: 'attention_drift',
+        elapsed: driftStart,
+        description: `Student showed signs of disengagement for ${Math.round((last.elapsed - driftStart) / 1000)}s`,
+      });
+    }
+  }
+
   return moments.sort((a, b) => a.elapsed - b.elapsed);
 }
 
@@ -293,7 +344,7 @@ function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, m
 
 function generateRecommendations(summaries, nudges) {
   const recs = [];
-  const { talkTime, eyeContact, interruptions, energy, mutualAttention, hasStudent, sessionType = 'lecture' } = summaries;
+  const { talkTime, eyeContact, interruptions, energy, mutualAttention, attentionDrift, hasStudent, sessionType = 'lecture' } = summaries;
   const bench = SESSION_TYPE_BENCHMARKS[sessionType] || SESSION_TYPE_BENCHMARKS.lecture;
 
   if (eyeContact.tutor < 50) {
@@ -355,6 +406,13 @@ function generateRecommendations(summaries, nudges) {
       recs.push({
         text: 'Student energy was low throughout. Consider shorter sessions or more interactive activities.',
         priority: 'medium',
+      });
+    }
+
+    if (attentionDrift && attentionDrift.driftPercent > 30) {
+      recs.push({
+        text: `The student showed signs of disengagement ${attentionDrift.driftPercent}% of the time. Try incorporating more interactive activities, asking direct questions, or switching formats when you notice drift.`,
+        priority: 'high',
       });
     }
   }

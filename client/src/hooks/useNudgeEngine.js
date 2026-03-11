@@ -69,6 +69,12 @@ const NUDGE_RULES = [
     message: 'You\'ve interrupted the student a few times recently. Try giving more wait time after they speak.',
     check: ({ recentTutorInterruptions }) => recentTutorInterruptions >= 3,
   },
+  {
+    type: 'mutual_disengagement',
+    requiresStudent: true,
+    message: 'Your student shows signs of disengagement \u2014 low eye contact, low energy, and not speaking. Try switching to an interactive activity or asking a direct question.',
+    check: ({ driftDuration }) => driftDuration >= 20_000,
+  },
 ];
 
 export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, elapsed, sessionType = 'lecture' }) {
@@ -102,6 +108,10 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
 
   // Track energy for drop detection
   const energyHistoryRef = useRef([]); // [{ time, value }]
+
+  // Track combined disengagement (low gaze + low energy + silent)
+  const driftStartRef = useRef(null);
+  const driftDurationRef = useRef(0);
 
   // Track interruptions (both speaking simultaneously)
   const interruptionTimesRef = useRef([]); // timestamps of detected interruptions
@@ -194,6 +204,17 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
         energyDrop = Math.max(oldest - newest, 0);
       }
 
+      // --- Combined disengagement (drift) tracking ---
+      if (studentGaze < 40 && studentEnergy < 30 && !studentSpeaking) {
+        if (!driftStartRef.current) {
+          driftStartRef.current = now;
+        }
+        driftDurationRef.current = now - driftStartRef.current;
+      } else {
+        driftStartRef.current = null;
+        driftDurationRef.current = 0;
+      }
+
       // --- Interruption detection with direction ---
       const bothSpeaking = tutorSpeaking && studentSpeaking;
       if (bothSpeaking && !bothSpeakingRef.current) {
@@ -238,6 +259,7 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
         energyDrop,
         recentInterruptions,
         recentTutorInterruptions,
+        driftDuration: driftDurationRef.current,
         sessionType,
       };
 

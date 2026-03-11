@@ -81,6 +81,16 @@ function TutorView() {
     const interval = setInterval(() => {
       const audio = getCumulativeMs();
       const m = latestRef.current;
+      // Compute attention drift from student metrics (null when no student)
+      const rm = remoteMetricsRef.current;
+      let attentionDrift = null;
+      if (rm) {
+        const gazeDeficit = 100 - (rm.gazeScore ?? 0);
+        const energyDeficit = 100 - Math.round((rm.energy ?? 0) * 100);
+        const silenceScore = rm.isSpeaking ? 0 : 100;
+        attentionDrift = Math.round(gazeDeficit * 0.4 + energyDeficit * 0.35 + silenceScore * 0.25);
+      }
+
       const localData = {
         gazeScore: m.gazeScore,
         isSpeaking: m.isSpeaking,
@@ -90,6 +100,7 @@ function TutorView() {
         muted: m.muted,
         speakingMs: audio.speakingMs,
         totalMs: audio.totalMs,
+        attentionDrift,
       };
       sendMetrics(localData);
 
@@ -130,6 +141,15 @@ function TutorView() {
   const studentGaze = remoteMetrics?.gazeScore ?? 0;
   const mutualAttention = hasStudent ? (gazeScore >= 50 && studentGaze >= 50) : null;
 
+  // Attention drift: composite disengagement signal from student
+  let attentionDrift = null;
+  if (hasStudent) {
+    const gazeDeficit = 100 - studentGaze;
+    const energyDeficit = 100 - Math.round((remoteMetrics?.energy ?? 0) * 100);
+    const silenceScore = remoteMetrics?.isSpeaking ? 0 : 100;
+    attentionDrift = Math.round(gazeDeficit * 0.4 + energyDeficit * 0.35 + silenceScore * 0.25);
+  }
+
   const metrics = {
     tutorEyeContact: gazeScore,
     tutorTalkTime: tutorTalkPercent,
@@ -138,6 +158,7 @@ function TutorView() {
     studentTalkTime: studentTalkPercent,
     studentEnergy: hasStudent ? Math.round((remoteMetrics?.energy ?? 0) * 100) : null,
     mutualAttention,
+    attentionDrift,
     hasStudent,
   };
 
