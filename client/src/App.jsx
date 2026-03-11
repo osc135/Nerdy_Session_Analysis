@@ -3,6 +3,7 @@ import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import ConsentScreen from './components/ConsentScreen.jsx';
+import CalibrationScreen from './components/CalibrationScreen.jsx';
 import TutorView from './components/TutorView.jsx';
 import StudentView from './components/StudentView.jsx';
 import PostSessionReport from './components/PostSessionReport.jsx';
@@ -24,6 +25,7 @@ function App() {
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/session" element={<ProtectedRoute><ConsentScreen /></ProtectedRoute>} />
+      <Route path="/calibrate/:role/:sessionId" element={<ProtectedRoute><CalibrationScreen /></ProtectedRoute>} />
       <Route path="/tutor/:sessionId" element={<ProtectedRoute><TutorView /></ProtectedRoute>} />
       <Route path="/student/:sessionId" element={<ProtectedRoute><StudentView /></ProtectedRoute>} />
       <Route path="/report/:sessionId" element={<ProtectedRoute><PostSessionReport /></ProtectedRoute>} />

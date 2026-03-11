@@ -1,48 +1,54 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
-import { estimateHeadPose, getIrisRatio, getEyeAspectRatio, LANDMARKS, THRESHOLDS } from '../hooks/useMediaPipe';
+import { estimateHeadPose, getWeightedIrisPosition, getEyeAspectRatio, LANDMARKS, THRESHOLDS } from '../hooks/useMediaPipe';
+import { buildCalibrationModel, serializeModel } from '../utils/gazeCalibration';
 
-// Calibration points: top-left, top-right, bottom-center of screen
+// 5-point calibration: 4 corners + center
 const CALIBRATION_POINTS = [
-  { x: 5, y: 5, label: 'top-left corner' },
-  { x: 95, y: 5, label: 'top-right corner' },
-  { x: 50, y: 95, label: 'bottom center' },
+  { x: 10, y: 10, label: 'top-left' },
+  { x: 90, y: 10, label: 'top-right' },
+  { x: 50, y: 50, label: 'center' },
+  { x: 10, y: 90, label: 'bottom-left' },
+  { x: 90, y: 90, label: 'bottom-right' },
 ];
 
-const SAMPLES_PER_POINT = 20; // collect ~20 gaze samples per calibration point
-const SAMPLE_INTERVAL_MS = 80; // sample every 80ms (~1.3s per point)
+const SAMPLES_PER_POINT = 25;
+const SAMPLE_INTERVAL_MS = 60;
 
 function CalibrationScreen() {
   const { role, sessionId } = useParams();
   const navigate = useNavigate();
 
-  const [cameraAllowed, setCameraAllowed] = useState(null); // null = not asked, true/false
   const [stream, setStream] = useState(null);
   const [videoReady, setVideoReady] = useState(false);
-  const [calibrationStep, setCalibrationStep] = useState(-1); // -1 = not started
+  const [calibrationStep, setCalibrationStep] = useState(-1);
   const [samplesCollected, setSamplesCollected] = useState(0);
   const [mediaPipeReady, setMediaPipeReady] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
   const [error, setError] = useState(null);
 
   const videoRef = useRef(null);
   const faceLandmarkerRef = useRef(null);
   const calibrationDataRef = useRef([]);
   const samplingRef = useRef(null);
+  const faceCheckRef = useRef(null);
 
-  // Request camera access
-  const requestCamera = useCallback(async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
-      });
-      setStream(mediaStream);
-      setCameraAllowed(true);
-    } catch (err) {
-      setCameraAllowed(false);
-      setError('Camera access is required for visual engagement tracking.');
-    }
+  // Request camera on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false,
+        });
+        if (!cancelled) setStream(mediaStream);
+      } catch {
+        if (!cancelled) setError('Camera access is required for calibration.');
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Initialize MediaPipe
@@ -50,44 +56,35 @@ function CalibrationScreen() {
     let cancelled = false;
 
     async function init() {
-      try {
+      const createLandmarker = async (delegate) => {
         const vision = await FilesetResolver.forVisionTasks(
           'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
         );
-        const landmarker = await FaceLandmarker.createFromOptions(vision, {
+        return FaceLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-            delegate: 'GPU',
+            delegate,
           },
           runningMode: 'VIDEO',
           numFaces: 1,
           outputFaceBlendshapes: false,
           outputFacialTransformationMatrixes: false,
         });
+      };
 
+      try {
+        const landmarker = await createLandmarker('GPU');
         if (cancelled) return;
         faceLandmarkerRef.current = landmarker;
         setMediaPipeReady(true);
-      } catch (err) {
+      } catch {
         try {
-          const vision = await FilesetResolver.forVisionTasks(
-            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-          );
-          const landmarker = await FaceLandmarker.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-              delegate: 'CPU',
-            },
-            runningMode: 'VIDEO',
-            numFaces: 1,
-            outputFaceBlendshapes: false,
-            outputFacialTransformationMatrixes: false,
-          });
+          const landmarker = await createLandmarker('CPU');
           if (cancelled) return;
           faceLandmarkerRef.current = landmarker;
           setMediaPipeReady(true);
-        } catch (cpuErr) {
-          setError('Failed to initialize face tracking. Please try a different browser.');
+        } catch {
+          if (!cancelled) setError('Failed to initialize face tracking.');
         }
       }
     }
@@ -102,16 +99,14 @@ function CalibrationScreen() {
     };
   }, []);
 
-  // Attach stream to the offscreen video element and poll until it's ready.
-  // We poll because offscreen videos may not fire 'playing' in all browsers.
+  // Attach stream to video element
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !stream) return;
 
     video.srcObject = stream;
-    video.play().catch(() => {}); // ensure playback starts even if autoPlay is ignored
+    video.play().catch(() => {});
 
-    // Poll readyState since offscreen videos may not fire events reliably
     const check = setInterval(() => {
       if (video.readyState >= 2) {
         setVideoReady(true);
@@ -122,7 +117,25 @@ function CalibrationScreen() {
     return () => clearInterval(check);
   }, [stream]);
 
-  // Get current gaze vector from a single frame
+  // Continuous face detection check (so user knows if their face is visible)
+  useEffect(() => {
+    if (!mediaPipeReady || !videoReady) return;
+
+    faceCheckRef.current = setInterval(() => {
+      const video = videoRef.current;
+      const landmarker = faceLandmarkerRef.current;
+      if (!video || !landmarker || video.readyState < 2) return;
+
+      try {
+        const results = landmarker.detectForVideo(video, performance.now());
+        setFaceDetected(results.faceLandmarks && results.faceLandmarks.length > 0);
+      } catch { /* skip */ }
+    }, 300);
+
+    return () => clearInterval(faceCheckRef.current);
+  }, [mediaPipeReady, videoReady]);
+
+  // Sample a single gaze frame
   const sampleGaze = useCallback(() => {
     const video = videoRef.current;
     const landmarker = faceLandmarkerRef.current;
@@ -135,23 +148,16 @@ function CalibrationScreen() {
       const landmarks = results.faceLandmarks[0];
       const L = LANDMARKS;
 
-      // Skip blinks
       const leftEAR = getEyeAspectRatio(landmarks, L.LEFT_EYE_INNER, L.LEFT_EYE_OUTER, L.LEFT_EYE_TOP, L.LEFT_EYE_BOTTOM);
       const rightEAR = getEyeAspectRatio(landmarks, L.RIGHT_EYE_INNER, L.RIGHT_EYE_OUTER, L.RIGHT_EYE_TOP, L.RIGHT_EYE_BOTTOM);
       if (leftEAR < THRESHOLDS.BLINK_EAR_THRESHOLD || rightEAR < THRESHOLDS.BLINK_EAR_THRESHOLD) return null;
 
-      const leftIris = getIrisRatio(landmarks, L.LEFT_IRIS_CENTER, L.LEFT_EYE_INNER, L.LEFT_EYE_OUTER, L.LEFT_EYE_TOP, L.LEFT_EYE_BOTTOM);
-      const rightIris = getIrisRatio(landmarks, L.RIGHT_IRIS_CENTER, L.RIGHT_EYE_INNER, L.RIGHT_EYE_OUTER, L.RIGHT_EYE_TOP, L.RIGHT_EYE_BOTTOM);
-
-      const leftIrisXNormalized = 1 - leftIris.x;
-      const avgIrisX = (leftIrisXNormalized + rightIris.x) / 2;
-      const avgIrisY = (leftIris.y + rightIris.y) / 2;
-
       const headPose = estimateHeadPose(landmarks);
+      const iris = getWeightedIrisPosition(landmarks, headPose.yaw);
 
       return {
-        irisX: avgIrisX,
-        irisY: avgIrisY,
+        irisX: iris.x,
+        irisY: iris.y,
         headYaw: headPose.yaw,
         headPitch: headPose.pitch,
       };
@@ -160,8 +166,11 @@ function CalibrationScreen() {
     }
   }, []);
 
-  // Start sampling for the current calibration point
+  // Start sampling for a calibration point
   const startSampling = useCallback((pointIndex) => {
+    // Stop face check during sampling to free up MediaPipe
+    if (faceCheckRef.current) clearInterval(faceCheckRef.current);
+
     const samples = [];
     setSamplesCollected(0);
 
@@ -177,7 +186,8 @@ function CalibrationScreen() {
         samplingRef.current = null;
 
         calibrationDataRef.current[pointIndex] = {
-          point: CALIBRATION_POINTS[pointIndex],
+          screenX: CALIBRATION_POINTS[pointIndex].x,
+          screenY: CALIBRATION_POINTS[pointIndex].y,
           samples,
         };
 
@@ -190,65 +200,41 @@ function CalibrationScreen() {
     }, SAMPLE_INTERVAL_MS);
   }, [sampleGaze]);
 
-  // When calibration step changes, start sampling
   useEffect(() => {
     if (calibrationStep >= 0 && calibrationStep < CALIBRATION_POINTS.length) {
       startSampling(calibrationStep);
     }
     return () => {
-      if (samplingRef.current) {
-        clearInterval(samplingRef.current);
-      }
+      if (samplingRef.current) clearInterval(samplingRef.current);
     };
   }, [calibrationStep, startSampling]);
 
-  // Build the screen bounds from calibration data and navigate to session
   const finishCalibration = useCallback(() => {
-    const data = calibrationDataRef.current;
+    const model = buildCalibrationModel(calibrationDataRef.current);
 
-    const avgPoints = data.map(d => {
-      const avgX = d.samples.reduce((s, g) => s + g.irisX, 0) / d.samples.length;
-      const avgY = d.samples.reduce((s, g) => s + g.irisY, 0) / d.samples.length;
-      const avgYaw = d.samples.reduce((s, g) => s + g.headYaw, 0) / d.samples.length;
-      const avgPitch = d.samples.reduce((s, g) => s + g.headPitch, 0) / d.samples.length;
-      return { irisX: avgX, irisY: avgY, headYaw: avgYaw, headPitch: avgPitch };
-    });
-
-    const allX = avgPoints.map(p => p.irisX);
-    const allY = avgPoints.map(p => p.irisY);
-
-    const rangeX = Math.max(...allX) - Math.min(...allX);
-    const rangeY = Math.max(...allY) - Math.min(...allY);
-    const marginX = Math.max(rangeX * 0.1, 0.02);
-    const marginY = Math.max(rangeY * 0.1, 0.02);
-
-    const screenBounds = {
-      minX: Math.min(...allX) - marginX,
-      maxX: Math.max(...allX) + marginX,
-      minY: Math.min(...allY) - marginY,
-      maxY: Math.max(...allY) + marginY,
-      headYawRange: {
-        min: Math.min(...avgPoints.map(p => p.headYaw)) - 5,
-        max: Math.max(...avgPoints.map(p => p.headYaw)) + 5,
-      },
-      headPitchRange: {
-        min: Math.min(...avgPoints.map(p => p.headPitch)) - 5,
-        max: Math.max(...avgPoints.map(p => p.headPitch)) + 5,
-      },
-    };
-
-    sessionStorage.setItem(`calibration_${sessionId}`, JSON.stringify(screenBounds));
-
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
+    if (model) {
+      sessionStorage.setItem(`calibration_${sessionId}`, serializeModel(model));
+      console.log('[Calibration] Model built:', model.numSamples, 'samples, RMSE:', model.rmseX.toFixed(3), model.rmseY.toFixed(3));
+    } else {
+      console.warn('[Calibration] Not enough data to build model, using fallback');
     }
+
+    cleanup();
+    navigate(`/${role}/${sessionId}`);
+  }, [sessionId, role, navigate]);
+
+  const handleSkip = () => {
+    cleanup();
+    navigate(`/${role}/${sessionId}`);
+  };
+
+  const cleanup = useCallback(() => {
+    if (stream) stream.getTracks().forEach(t => t.stop());
     if (faceLandmarkerRef.current) {
       faceLandmarkerRef.current.close();
       faceLandmarkerRef.current = null;
     }
-
-    navigate(`/${role}/${sessionId}`);
-  }, [sessionId, role, navigate, stream]);
+  }, [stream]);
 
   // ─── Render ────────────────────────────────────────────────────────
 
@@ -256,69 +242,31 @@ function CalibrationScreen() {
   const currentPoint = isCalibrating ? CALIBRATION_POINTS[calibrationStep] : null;
   const progress = isCalibrating ? Math.round((samplesCollected / SAMPLES_PER_POINT) * 100) : 0;
 
-  // Determine which UI content to show
+  // Determine visible content based on state
   let content;
 
-  if (cameraAllowed === null) {
-    content = (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <h1 style={styles.title}>Camera Setup</h1>
-          <p style={styles.text}>
-            We need access to your camera to track visual engagement during the session.
-            Your video is processed locally — it never leaves your browser.
-          </p>
-          <div style={styles.buttons}>
-            <button style={{ ...styles.button, ...styles.allowBtn }} onClick={requestCamera}>
-              Allow Camera Access
-            </button>
-            <button
-              style={{ ...styles.button, ...styles.denyBtn }}
-              onClick={() => setCameraAllowed(false)}
-            >
-              Decline
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  } else if (cameraAllowed === false) {
-    content = (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <h1 style={styles.title}>Camera Required</h1>
-          <p style={styles.text}>
-            Visual engagement tracking requires camera access to work.
-            Without it, we can't measure screen attention during the session.
-          </p>
-          <p style={styles.textMuted}>
-            Please enable camera access in your browser settings and try again.
-          </p>
-          <button
-            style={{ ...styles.button, ...styles.allowBtn }}
-            onClick={() => { setCameraAllowed(null); setError(null); }}
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  } else if (error) {
+  if (error) {
     content = (
       <div style={styles.container}>
         <div style={styles.card}>
           <h1 style={styles.title}>Setup Error</h1>
           <p style={styles.text}>{error}</p>
+          <button style={{ ...styles.button, ...styles.skipBtn }} onClick={handleSkip}>
+            Continue Without Calibration
+          </button>
         </div>
       </div>
     );
-  } else if (!mediaPipeReady) {
+  } else if (!mediaPipeReady || !videoReady) {
     content = (
       <div style={styles.container}>
         <div style={styles.card}>
           <h1 style={styles.title}>Loading Face Tracking...</h1>
           <p style={styles.textMuted}>This may take a few seconds on first load.</p>
           <div style={styles.spinner} />
+          <button style={{ ...styles.button, ...styles.skipBtn, marginTop: '1.5rem' }} onClick={handleSkip}>
+            Skip Calibration
+          </button>
         </div>
       </div>
     );
@@ -326,24 +274,37 @@ function CalibrationScreen() {
     content = (
       <div style={styles.container}>
         <div style={styles.card}>
-          <h1 style={styles.title}>Quick Calibration</h1>
+          <h1 style={styles.title}>Quick Eye Calibration</h1>
           <p style={styles.text}>
-            We'll show you 3 dots on screen. Look at each dot when it appears and hold
-            your gaze for about a second. This helps us understand where your screen is
-            so we can accurately track visual engagement.
+            We'll show 5 dots on screen. Look directly at each dot and hold your gaze
+            for about 1.5 seconds. This trains the gaze tracker to your eyes and screen position.
           </p>
-          <div style={styles.videoPreview}>
-            <video autoPlay muted playsInline style={styles.previewVideo}
-              ref={el => { if (el && stream) el.srcObject = stream; }}
-            />
+
+          <div style={styles.faceStatus}>
+            <div style={{
+              ...styles.faceIndicator,
+              background: faceDetected ? '#2d7a4a' : '#8b3a3a',
+            }} />
+            <span style={{ color: faceDetected ? '#6ee7a0' : '#f08080' }}>
+              {faceDetected ? 'Face detected — ready to calibrate' : 'Position your face in front of the camera'}
+            </span>
           </div>
-          <button
-            style={{ ...styles.button, ...styles.allowBtn, marginTop: '1rem', opacity: videoReady ? 1 : 0.5 }}
-            onClick={() => setCalibrationStep(0)}
-            disabled={!videoReady}
-          >
-            {videoReady ? 'Start Calibration' : 'Waiting for camera...'}
-          </button>
+
+          <div style={styles.buttonRow}>
+            <button
+              style={{
+                ...styles.button, ...styles.startBtn,
+                opacity: faceDetected ? 1 : 0.4,
+              }}
+              onClick={() => setCalibrationStep(0)}
+              disabled={!faceDetected}
+            >
+              Start Calibration
+            </button>
+            <button style={{ ...styles.button, ...styles.skipBtn }} onClick={handleSkip}>
+              Skip
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -358,14 +319,16 @@ function CalibrationScreen() {
           }}
         >
           <div style={{
-            ...styles.dotInner,
-            transform: `scale(${1 + (progress / 100) * 0.5})`,
+            ...styles.dotRing,
+            transform: `scale(${1 + (progress / 100) * 0.6})`,
+            opacity: 0.3 + (progress / 100) * 0.7,
           }} />
+          <div style={styles.dotCenter} />
         </div>
 
         <div style={styles.calibrationInfo}>
           <p style={styles.calibrationText}>
-            Look at the dot — {currentPoint.label}
+            Look at the dot — <strong>{currentPoint.label}</strong>
           </p>
           <div style={styles.progressTrack}>
             <div style={{ ...styles.progressFill, width: `${progress}%` }} />
@@ -378,16 +341,10 @@ function CalibrationScreen() {
     );
   }
 
-  // Offscreen video is ALWAYS rendered so the ref is stable and MediaPipe can read frames
+  // Video element is ALWAYS rendered so the ref is stable and MediaPipe can read frames
   return (
     <>
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        style={styles.offscreenVideo}
-      />
+      <video ref={videoRef} autoPlay muted playsInline style={styles.offscreenVideo} />
       {content}
     </>
   );
@@ -426,7 +383,21 @@ const styles = {
     fontSize: '0.85rem',
     marginBottom: '1.5rem',
   },
-  buttons: {
+  faceStatus: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.6rem',
+    marginBottom: '1.5rem',
+    fontSize: '0.88rem',
+  },
+  faceIndicator: {
+    width: '10px',
+    height: '10px',
+    borderRadius: '50%',
+    flexShrink: 0,
+  },
+  buttonRow: {
     display: 'flex',
     gap: '1rem',
     justifyContent: 'center',
@@ -439,26 +410,14 @@ const styles = {
     fontWeight: 600,
     cursor: 'pointer',
   },
-  allowBtn: {
+  startBtn: {
     background: '#238636',
     color: 'white',
   },
-  denyBtn: {
+  skipBtn: {
     background: '#21262d',
-    color: '#c9d1d9',
+    color: '#8b949e',
     border: '1px solid #30363d',
-  },
-  videoPreview: {
-    width: '100%',
-    maxWidth: '320px',
-    margin: '0 auto',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    border: '1px solid #30363d',
-  },
-  previewVideo: {
-    width: '100%',
-    display: 'block',
   },
   spinner: {
     width: '32px',
@@ -469,36 +428,40 @@ const styles = {
     margin: '1rem auto',
     animation: 'spin 1s linear infinite',
   },
+  offscreenVideo: {
+    position: 'fixed',
+    top: 0, left: 0,
+    width: '1px', height: '1px',
+    opacity: 0,
+    pointerEvents: 'none',
+  },
   calibrationFullscreen: {
     position: 'fixed',
     inset: 0,
     background: '#0d1117',
   },
-  offscreenVideo: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    width: '1px',
-    height: '1px',
-    opacity: 0,
-    pointerEvents: 'none',
-  },
   dot: {
     position: 'absolute',
     transform: 'translate(-50%, -50%)',
-    width: '40px',
-    height: '40px',
+    width: '50px',
+    height: '50px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dotInner: {
-    width: '20px',
-    height: '20px',
+  dotCenter: {
+    width: '12px',
+    height: '12px',
     borderRadius: '50%',
     background: '#58a6ff',
-    boxShadow: '0 0 20px rgba(88, 166, 255, 0.5)',
-    transition: 'transform 0.15s ease',
+    position: 'absolute',
+  },
+  dotRing: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    border: '2px solid #58a6ff',
+    transition: 'transform 0.15s ease, opacity 0.15s ease',
   },
   calibrationInfo: {
     position: 'absolute',

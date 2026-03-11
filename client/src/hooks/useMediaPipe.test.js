@@ -3,6 +3,7 @@ import {
   estimateHeadPose,
   getIrisRatio,
   getEyeAspectRatio,
+  getWeightedIrisPosition,
   extractGaze,
   computeEyeContact,
   calculateGazeScore,
@@ -241,90 +242,80 @@ describe('computeEyeContact', () => {
     const result = computeEyeContact(landmarks);
 
     expect(result.eyeContact).not.toBeNull();
-    expect(result.blinking).toBeUndefined();
+    expect(result.blinking).toBe(false);
+  });
+
+  it('returns a gazeConfidence score between 0 and 1', () => {
+    const landmarks = makeLandmarks();
+    const result = computeEyeContact(landmarks);
+
+    expect(result.gazeConfidence).toBeGreaterThanOrEqual(0);
+    expect(result.gazeConfidence).toBeLessThanOrEqual(1);
   });
 });
 
-// ─── computeEyeContact with calibration ─────────────────────────────
+// ─── computeEyeContact with calibration model ──────────────────────
 
-describe('computeEyeContact with screenBounds (calibrated)', () => {
-  // First figure out what gaze values our default landmarks produce
-  // so we can build screen bounds around them
-  function getDefaultGaze() {
-    const landmarks = makeLandmarks();
-    const gaze = extractGaze(landmarks);
-    return gaze;
+describe('computeEyeContact with calibration model', () => {
+  // Build a simple calibration model where centered gaze maps to screen center
+  function makeCalibrationModel() {
+    // coeffX: screenX = 50 (constant) — any gaze maps to center
+    // coeffY: screenY = 50 (constant)
+    return {
+      coeffX: [50, 0, 0, 0, 0],
+      coeffY: [50, 0, 0, 0, 0],
+      rmseX: 5,
+      rmseY: 5,
+      numSamples: 25,
+    };
   }
 
-  it('detects on-screen when gaze falls inside calibrated bounds', () => {
-    const gaze = getDefaultGaze();
-    const screenBounds = {
-      minX: gaze.irisX - 0.1,
-      maxX: gaze.irisX + 0.1,
-      minY: gaze.irisY - 0.1,
-      maxY: gaze.irisY + 0.1,
-      headYawRange: { min: gaze.headPose.yaw - 10, max: gaze.headPose.yaw + 10 },
-      headPitchRange: { min: gaze.headPose.pitch - 10, max: gaze.headPose.pitch + 10 },
+  // Model that maps gaze far off screen
+  function makeOffScreenModel() {
+    return {
+      coeffX: [200, 0, 0, 0, 0],  // predicted X = 200 (far outside 0-100)
+      coeffY: [200, 0, 0, 0, 0],
+      rmseX: 5,
+      rmseY: 5,
+      numSamples: 25,
     };
+  }
 
-    const result = computeEyeContact(makeLandmarks(), screenBounds);
+  it('detects eye contact when model predicts on-screen', () => {
+    const model = makeCalibrationModel();
+    const result = computeEyeContact(makeLandmarks(), model);
+
     expect(result.eyeContact).toBe(true);
+    expect(result.gazeConfidence).toBeGreaterThan(0.5);
+    expect(result.screenPos).toBeDefined();
   });
 
-  it('detects off-screen when gaze falls outside calibrated bounds', () => {
-    const gaze = getDefaultGaze();
-    // Screen bounds shifted far away from where default gaze lands
-    const screenBounds = {
-      minX: gaze.irisX + 0.3,
-      maxX: gaze.irisX + 0.5,
-      minY: gaze.irisY + 0.3,
-      maxY: gaze.irisY + 0.5,
-      headYawRange: { min: -30, max: 30 },
-      headPitchRange: { min: -30, max: 30 },
-    };
+  it('detects NO eye contact when model predicts off-screen', () => {
+    const model = makeOffScreenModel();
+    const result = computeEyeContact(makeLandmarks(), model);
 
-    const result = computeEyeContact(makeLandmarks(), screenBounds);
     expect(result.eyeContact).toBe(false);
+    expect(result.gazeConfidence).toBeLessThan(0.5);
   });
 
-  it('detects off-screen when head is outside calibrated range', () => {
-    const gaze = getDefaultGaze();
-    const screenBounds = {
-      minX: gaze.irisX - 0.1,
-      maxX: gaze.irisX + 0.1,
-      minY: gaze.irisY - 0.1,
-      maxY: gaze.irisY + 0.1,
-      // Head range doesn't include where our default head pose lands
-      headYawRange: { min: 40, max: 50 },
-      headPitchRange: { min: 40, max: 50 },
-    };
-
-    const result = computeEyeContact(makeLandmarks(), screenBounds);
-    expect(result.eyeContact).toBe(false);
-  });
-
-  it('still returns null for blinks even with calibration', () => {
+  it('still returns null for blinks even with calibration model', () => {
     const landmarks = makeLandmarks({
       [LANDMARKS.LEFT_EYE_TOP]:    { x: 0.37, y: 0.439 },
       [LANDMARKS.LEFT_EYE_BOTTOM]: { x: 0.37, y: 0.441 },
     });
-    const screenBounds = {
-      minX: 0, maxX: 1, minY: 0, maxY: 1,
-      headYawRange: { min: -90, max: 90 },
-      headPitchRange: { min: -90, max: 90 },
-    };
+    const model = makeCalibrationModel();
 
-    const result = computeEyeContact(landmarks, screenBounds);
+    const result = computeEyeContact(landmarks, model);
     expect(result.eyeContact).toBeNull();
     expect(result.blinking).toBe(true);
   });
 
-  it('uses fallback tolerance mode when screenBounds is null', () => {
+  it('uses fallback mode when model is null', () => {
     const landmarks = makeLandmarks();
-    const withBounds = computeEyeContact(landmarks, null);
-    const withoutBounds = computeEyeContact(landmarks);
+    const withModel = computeEyeContact(landmarks, null);
+    const withoutModel = computeEyeContact(landmarks);
 
-    expect(withBounds.eyeContact).toBe(withoutBounds.eyeContact);
+    expect(withModel.eyeContact).toBe(withoutModel.eyeContact);
   });
 });
 
