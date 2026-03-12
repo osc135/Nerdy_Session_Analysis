@@ -9,7 +9,7 @@ export function useAudioAnalysis(stream) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [talkTimePercent, setTalkTimePercent] = useState(0);
   const [volume, setVolume] = useState(0);
-  const [energy, setEnergy] = useState(0);
+  const [vocalTone, setVocalTone] = useState(0);
 
   const contextRef = useRef(null);
   const analyserRef = useRef(null);
@@ -109,11 +109,11 @@ export function useAudioAnalysis(stream) {
         // Normalize: std of 50Hz is quite varied for speech
         const pitchVariation = Math.min(pitchStd / 50, 1);
 
-        // Composite: 50% pitch variation + 50% volume variance
-        setEnergy((pitchVariation * 0.5 + volumeVariation * 0.5));
+        // Vocal tone: pitch variation is the primary signal for vocal engagement
+        setVocalTone((pitchVariation * 0.6 + volumeVariation * 0.4));
       } else if (!speaking) {
-        // Decay energy toward 0 when silent
-        setEnergy(prev => Math.max(prev - 0.02, 0));
+        // Decay toward 0 when silent
+        setVocalTone(prev => Math.max(prev - 0.02, 0));
       }
     }, CHECK_INTERVAL);
 
@@ -130,5 +130,5 @@ export function useAudioAnalysis(stream) {
     totalMs: totalMsRef.current,
   }), []);
 
-  return { isSpeaking, talkTimePercent, volume, energy, getCumulativeMs };
+  return { isSpeaking, talkTimePercent, volume, vocalTone, getCumulativeMs };
 }

@@ -42,11 +42,6 @@ export const THRESHOLDS = {
     medium: 3,
     high: 2,
   },
-  tutorInterruptions: {
-    low: 5,
-    medium: 3,
-    high: 2,
-  },
   driftDuration: {
     low: 30_000,
     medium: 20_000,

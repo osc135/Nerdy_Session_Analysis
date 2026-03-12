@@ -54,11 +54,14 @@ function TutorView() {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
-  // Eye contact tracking via MediaPipe
-  const { gazeScore, isReady: mediaPipeReady, gazeDebug } = useMediaPipe(localVideoRef, sessionId);
+  // Eye contact tracking + facial expressiveness via MediaPipe
+  const { gazeScore, facialEnergy, isReady: mediaPipeReady, gazeDebug } = useMediaPipe(localVideoRef, sessionId);
 
-  // Audio analysis for local mic
-  const { isSpeaking, talkTimePercent, volume, energy, getCumulativeMs } = useAudioAnalysis(localStream);
+  // Audio analysis for local mic (vocal tone)
+  const { isSpeaking, talkTimePercent, volume, vocalTone, getCumulativeMs } = useAudioAnalysis(localStream);
+
+  // Combined energy: 60% facial expressiveness + 40% vocal tone
+  const energy = facialEnergy * 0.6 + vocalTone * 0.4;
 
   // Start history recording only when student joins (first remoteMetrics received)
   const historyStartedRef = useRef(false);

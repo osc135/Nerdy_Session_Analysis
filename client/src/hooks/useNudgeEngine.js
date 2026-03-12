@@ -66,14 +66,18 @@ const NUDGE_RULES = [
   {
     type: 'interruption_spike',
     requiresStudent: true,
-    message: 'There have been several interruptions recently. Try giving a bit more wait time before responding.',
+    message: null,
     check: ({ recentInterruptions, t }) => recentInterruptions >= t.interruptionSpike,
-  },
-  {
-    type: 'tutor_interrupting',
-    requiresStudent: true,
-    message: 'You\'ve interrupted the student a few times recently. Try giving more wait time after they speak.',
-    check: ({ recentTutorInterruptions, t }) => recentTutorInterruptions >= t.tutorInterruptions,
+    getMessage: ({ recentInterruptions, recentTutorInterruptions }) => {
+      if (recentTutorInterruptions > recentInterruptions / 2) {
+        return `There have been ${recentInterruptions} interruptions recently, mostly from you. Try giving more wait time after your student speaks before responding.`;
+      }
+      const studentCount = recentInterruptions - recentTutorInterruptions;
+      if (studentCount > recentInterruptions / 2) {
+        return `There have been ${recentInterruptions} interruptions recently, mostly from the student. They may be eager to respond — try pausing longer after questions.`;
+      }
+      return `There have been ${recentInterruptions} interruptions recently from both sides. Try establishing clearer turn-taking.`;
+    },
   },
   {
     type: 'mutual_disengagement',

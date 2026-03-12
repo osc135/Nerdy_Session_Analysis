@@ -173,7 +173,6 @@ function PostSessionReport() {
               <MetricGauge label="Eye Contact" value={summary.eyeContact.tutor} accentColor="#e8985a" />
               <MetricGauge label="Talk Time" value={summary.talkTime.tutor} accentColor="#e8985a" />
               <MetricGauge label="Energy" value={summary.energy.tutor} accentColor="#c4a5e0" />
-              {hasStudent && <MetricGauge label="Interruptions" value={summary.interruptions.tutorInitiated} accentColor="#e8985a" />}
             </div>
           </div>
         </div>
@@ -187,7 +186,6 @@ function PostSessionReport() {
                 <MetricGauge label="Eye Contact" value={summary.eyeContact.student} accentColor="#6ee7a0" />
                 <MetricGauge label="Talk Time" value={summary.talkTime.student} accentColor="#7ab8e0" />
                 <MetricGauge label="Energy" value={summary.energy.student} accentColor="#a78bde" />
-                <MetricGauge label="Interruptions" value={summary.interruptions.studentInitiated} accentColor="#7ab8e0" />
               </div>
             </div>
           ) : (
@@ -208,10 +206,22 @@ function PostSessionReport() {
               color="#6ee7a0"
             />}
             {hasStudent && <MetricCard
-              label="Total Interruptions"
+              label="Interruptions"
               value={summary.interruptions.total}
-              unit={` (${summary.interruptions.perMinute}/min)`}
+              unit={` total (${summary.interruptions.perMinute}/min)`}
               color="#d4a04a"
+            />}
+            {hasStudent && <MetricCard
+              label="Tutor Interrupted"
+              value={summary.interruptions.tutorInitiated}
+              unit=" times"
+              color="#e8985a"
+            />}
+            {hasStudent && <MetricCard
+              label="Student Interrupted"
+              value={summary.interruptions.studentInitiated}
+              unit=" times"
+              color="#7ab8e0"
             />}
             {hasStudent && <MetricCard
               label="Attention Drift"

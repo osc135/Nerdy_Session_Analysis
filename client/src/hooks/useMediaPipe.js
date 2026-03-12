@@ -53,6 +53,41 @@ export const THRESHOLDS = {
 
 const ROLLING_WINDOW_MS = 30000;
 const ANALYSIS_FPS = 15;
+
+// Blendshapes used for facial expressiveness (energy)
+const EXPRESSIVENESS_SHAPES = [
+  'browInnerUp', 'browDownLeft', 'browDownRight', 'browOuterUpLeft', 'browOuterUpRight',
+  'mouthSmileLeft', 'mouthSmileRight', 'mouthFrownLeft', 'mouthFrownRight',
+  'mouthOpen', 'jawOpen',
+  'eyeWideLeft', 'eyeWideRight', 'eyeSquintLeft', 'eyeSquintRight',
+  'cheekSquintLeft', 'cheekSquintRight',
+  'noseSneerLeft', 'noseSneerRight',
+];
+
+/**
+ * Compute facial expressiveness from blendshapes.
+ * Measures how much the face deviates from a neutral expression.
+ * Returns 0-1 where 0 = completely neutral, 1 = very expressive.
+ */
+export function computeFacialExpressiveness(blendshapes) {
+  if (!blendshapes || !blendshapes[0]?.categories) return 0;
+
+  let totalDeviation = 0;
+  let count = 0;
+
+  for (const name of EXPRESSIVENESS_SHAPES) {
+    const score = getBlendshape(blendshapes, name);
+    totalDeviation += score;
+    count++;
+  }
+
+  if (count === 0) return 0;
+
+  // Average deviation across all tracked shapes
+  // Normalize: avg of 0.15 is quite expressive for natural conversation
+  const avgDeviation = totalDeviation / count;
+  return Math.min(avgDeviation / 0.15, 1);
+}
 const LIVE_WINDOW_MS = 1000;
 const EMA_ALPHA = 0.4;
 
@@ -276,6 +311,7 @@ export function trimBuffer(buffer, windowMs, now = Date.now()) {
 export function useMediaPipe(videoRef, sessionId = null) {
   const [gazeScore, setGazeScore] = useState(0);
   const [energyScore, setEnergyScore] = useState(0);
+  const [facialEnergy, setFacialEnergy] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [gazeDebug, setGazeDebug] = useState(null);
 
@@ -319,12 +355,17 @@ export function useMediaPipe(videoRef, sessionId = null) {
 
         const smoothedConf = smoothedConfRef.current ?? rawConf;
 
+        // Compute facial expressiveness for energy metric
+        const facialExpressiveness = computeFacialExpressiveness(results.faceBlendshapes);
+        setFacialEnergy(facialExpressiveness);
+
         frameData = {
           timestamp: now,
           eyeContact: gazeResult.eyeContact,
           gazeConfidence: smoothedConf,
           gazeVector: gazeResult.gazeVector,
           headPose: gazeResult.headPose,
+          facialExpressiveness,
         };
 
         setGazeDebug({
@@ -443,5 +484,5 @@ export function useMediaPipe(videoRef, sessionId = null) {
     }));
   }, []);
 
-  return { gazeScore, energyScore, isReady, getSessionHistory, gazeDebug };
+  return { gazeScore, energyScore, facialEnergy, isReady, getSessionHistory, gazeDebug };
 }
