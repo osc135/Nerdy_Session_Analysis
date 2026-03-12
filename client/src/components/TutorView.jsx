@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { MetricsHistory } from '../utils/metricsHistory';
 import MetricsSidebar from './MetricsSidebar';
 import NudgePanel from './NudgePanel';
+import VideoLayout from './VideoLayout';
 
 function TutorView() {
   const { sessionId } = useParams();
@@ -190,18 +191,6 @@ function TutorView() {
     }
   }, [nudges]);
 
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
-
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
-
   return (
     <div style={styles.wrapper}>
       <div style={styles.main}>
@@ -227,19 +216,19 @@ function TutorView() {
           <button style={styles.endBtn} onClick={handleEndSession}>End Session</button>
         </div>
 
-        {/* Videos */}
-        <div style={styles.videos}>
-          <div style={styles.videoBox}>
-            <video ref={remoteVideoRef} autoPlay playsInline style={styles.video} />
-            <span style={styles.label}>Student{remoteMetrics?.muted ? ' (Muted)' : ''}</span>
-          </div>
-          <div style={styles.localVideoBox}>
-            <video ref={localVideoRef} autoPlay muted playsInline style={styles.video} />
-            <span style={styles.label}>You{muted ? ' (Muted)' : ''}</span>
-          </div>
-        </div>
+        {/* Video call layout: student full-screen, tutor PiP */}
+        <VideoLayout
+          localVideoRef={localVideoRef}
+          remoteVideoRef={remoteVideoRef}
+          connectionState={connectionState}
+          localStream={localStream}
+          remoteStream={remoteStream}
+          localLabel={`You${muted ? ' (Muted)' : ''}`}
+          remoteLabel="Student"
+          remoteMuted={!!remoteMetrics?.muted}
+        />
 
-        {/* Waiting hint */}
+        {/* Waiting hint — shown below the video area */}
         {connectionState === 'waiting' && (
           <p style={styles.hint}>
             Share this code with the student:{' '}
@@ -352,47 +341,6 @@ const styles = {
     fontWeight: 600,
     cursor: 'pointer',
     transition: 'background 0.15s',
-  },
-  videos: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-    minHeight: 0,
-  },
-  videoBox: {
-    flex: 1,
-    position: 'relative',
-    background: '#181c24',
-    borderRadius: '10px',
-    overflow: 'hidden',
-    border: '1px solid #252a33',
-    minHeight: 0,
-  },
-  localVideoBox: {
-    flex: 1,
-    position: 'relative',
-    background: '#181c24',
-    borderRadius: '10px',
-    overflow: 'hidden',
-    border: '1px solid #252a33',
-    minHeight: 0,
-  },
-  video: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    display: 'block',
-  },
-  label: {
-    position: 'absolute',
-    bottom: '8px',
-    left: '8px',
-    background: 'rgba(0,0,0,0.5)',
-    padding: '3px 10px',
-    borderRadius: '5px',
-    fontSize: '0.78rem',
-    color: '#b0b8c4',
   },
   hint: {
     marginTop: '1rem',

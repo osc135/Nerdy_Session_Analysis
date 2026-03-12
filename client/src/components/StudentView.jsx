@@ -5,6 +5,7 @@ import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
 import { useAuth } from '../contexts/AuthContext';
 import { MetricsHistory } from '../utils/metricsHistory';
+import VideoLayout from './VideoLayout';
 
 function StudentView() {
   const { sessionId } = useParams();
@@ -108,18 +109,6 @@ function StudentView() {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
-
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
-
   if (sessionEnded) {
     return (
       <div style={styles.endedContainer}>
@@ -155,17 +144,17 @@ function StudentView() {
         </button>
       </div>
 
-      {/* Videos */}
-      <div style={styles.videos}>
-        <div style={styles.videoBox}>
-          <video ref={remoteVideoRef} autoPlay playsInline style={styles.video} />
-          <span style={styles.label}>Tutor{remoteMetrics?.muted ? ' (Muted)' : ''}</span>
-        </div>
-        <div style={styles.localVideoBox}>
-          <video ref={localVideoRef} autoPlay muted playsInline style={styles.video} />
-          <span style={styles.label}>You{muted ? ' (Muted)' : ''}</span>
-        </div>
-      </div>
+      {/* Video call layout: tutor full-screen, student PiP */}
+      <VideoLayout
+        localVideoRef={localVideoRef}
+        remoteVideoRef={remoteVideoRef}
+        connectionState={connectionState}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        localLabel={`You${muted ? ' (Muted)' : ''}`}
+        remoteLabel="Tutor"
+        remoteMuted={!!remoteMetrics?.muted}
+      />
     </div>
   );
 }
@@ -222,47 +211,6 @@ const styles = {
     background: '#3b1a1a',
     color: '#f08080',
     borderColor: '#5c2a2a',
-  },
-  videos: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-    minHeight: 0,
-  },
-  videoBox: {
-    flex: 1,
-    position: 'relative',
-    background: '#181c24',
-    borderRadius: '10px',
-    overflow: 'hidden',
-    border: '1px solid #252a33',
-    minHeight: 0,
-  },
-  localVideoBox: {
-    flex: 1,
-    position: 'relative',
-    background: '#181c24',
-    borderRadius: '10px',
-    overflow: 'hidden',
-    border: '1px solid #252a33',
-    minHeight: 0,
-  },
-  video: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    display: 'block',
-  },
-  label: {
-    position: 'absolute',
-    bottom: '8px',
-    left: '8px',
-    background: 'rgba(0,0,0,0.5)',
-    padding: '3px 10px',
-    borderRadius: '5px',
-    fontSize: '0.78rem',
-    color: '#b0b8c4',
   },
   endedContainer: {
     display: 'flex',
