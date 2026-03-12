@@ -37,7 +37,7 @@ export function exportReportPDF(report) {
   const contentW = pageW - margin * 2;
   let y = margin;
 
-  const { summary, keyMoments, nudgeLog, recommendations, hasStudent, sessionType, sessionId, durationMinutes } = report;
+  const { summary, keyMoments, nudgeLog, recommendations, hasStudent, sessionType, sessionId, durationFormatted } = report;
   const bench = SESSION_TYPE_BENCHMARKS[sessionType] || SESSION_TYPE_BENCHMARKS.lecture;
 
   // --- Helpers ---
@@ -87,7 +87,7 @@ export function exportReportPDF(report) {
   setColor(COLORS.textDim);
   pdf.setFontSize(9);
   pdf.setFont(undefined, 'normal');
-  pdf.text(`Session ${sessionId}  •  ${durationMinutes} minutes  •  ${bench.label}`, margin, y);
+  pdf.text(`Session ${sessionId}  •  ${durationFormatted}  •  ${bench.label}`, margin, y);
   y += 12;
 
   // --- Engagement Score hero ---
@@ -170,7 +170,7 @@ export function exportReportPDF(report) {
       { label: 'Mutual Attention', value: summary.mutualAttention.percent },
       { label: 'Interruptions/min', value: summary.interruptions.perMinute },
       { label: 'Attention Drift', value: summary.attentionDrift.average },
-      { label: 'Duration (min)', value: durationMinutes, color: COLORS.textDim },
+      { label: 'Duration', value: durationFormatted, color: COLORS.textDim },
     ];
     drawGaugeRow(sessionGauges);
   }

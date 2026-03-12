@@ -44,12 +44,12 @@ function Dashboard() {
     return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   };
 
-  const getDuration = (start, end) => {
-    if (!start || !end) return '—';
-    const ms = new Date(end) - new Date(start);
-    const mins = Math.round(ms / 60000);
-    if (mins < 1) return '< 1 min';
-    return `${mins} min`;
+  const formatDuration = (ms) => {
+    if (!ms || ms <= 0) return '—';
+    const totalSec = Math.round(ms / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -119,18 +119,6 @@ function Dashboard() {
               <span style={styles.statValue}>{sessions.length}</span>
               <span style={styles.statLabel}>Total Sessions</span>
             </div>
-            <div style={styles.statCard}>
-              <span style={styles.statValue}>
-                {sessions.filter(s => s.role === 'tutor').length}
-              </span>
-              <span style={styles.statLabel}>As Tutor</span>
-            </div>
-            <div style={styles.statCard}>
-              <span style={styles.statValue}>
-                {sessions.filter(s => s.role === 'student').length}
-              </span>
-              <span style={styles.statLabel}>As Student</span>
-            </div>
           </div>
         )}
 
@@ -157,8 +145,8 @@ function Dashboard() {
                     <span style={styles.roleBadge(s.role)}>{s.role}</span>
                   </div>
                   <div style={styles.sessionMeta}>
-                    <span style={styles.sessionDate}>{formatDate(s.createdAt)} {formatTime(s.createdAt)}</span>
-                    <span style={styles.sessionDuration}>{getDuration(s.createdAt, s.endedAt)}</span>
+                    <span style={styles.sessionDate}>{formatDate(s.startedAt)} {formatTime(s.startedAt)}</span>
+                    <span style={styles.sessionDuration}>{formatDuration(s.durationMs)}</span>
                     <span style={{
                       ...styles.mergedBadge,
                       color: s.merged ? '#6ee7a0' : '#6b7280',

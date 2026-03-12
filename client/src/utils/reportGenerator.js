@@ -33,6 +33,7 @@ export function generateReport(sessionData) {
     sessionType,
     duration,
     durationMinutes: Math.round(duration / 60000),
+    durationFormatted: formatDuration(duration),
     hasStudent,
     summary: { talkTime, eyeContact, interruptions, energy, mutualAttention, attentionDrift, engagementScore },
     keyMoments: findKeyMoments(tutorSnapshots, studentSnapshots),
@@ -344,6 +345,13 @@ function computeEngagementScore({ talkTime, eyeContact, interruptions, energy, m
     interactionScore * 0.2;
 
   return Math.round(weighted * 100);
+}
+
+function formatDuration(ms) {
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 function generateRecommendations(summaries, nudges) {

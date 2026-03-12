@@ -294,20 +294,32 @@ app.get('/api/sessions/trends', requireAuth, async (req, res) => {
 app.get('/api/sessions/history', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT session_code, tutor_id, student_id, merged, created_at, ended_at
+      `SELECT session_code, tutor_id, student_id, merged, created_at, ended_at, tutor_metrics, student_metrics
        FROM sessions
        WHERE tutor_id = ? OR student_id = ?
        ORDER BY created_at DESC`,
       [req.user.id, req.user.id]
     );
 
-    const sessions = rows.map(row => ({
-      sessionCode: row.session_code,
-      role: row.tutor_id === req.user.id ? 'tutor' : 'student',
-      merged: row.merged,
-      createdAt: row.created_at,
-      endedAt: row.ended_at,
-    }));
+    const sessions = rows.map(row => {
+      // Extract start time and duration from stored metrics (client-side epoch timestamps)
+      let startTime = null;
+      let durationMs = 0;
+      try {
+        const tutor = row.tutor_metrics ? (typeof row.tutor_metrics === 'string' ? JSON.parse(row.tutor_metrics) : row.tutor_metrics) : null;
+        const student = row.student_metrics ? (typeof row.student_metrics === 'string' ? JSON.parse(row.student_metrics) : row.student_metrics) : null;
+        durationMs = Math.max(tutor?.duration || 0, student?.duration || 0);
+        startTime = tutor?.startTime || student?.startTime || null;
+      } catch { /* ignore parse errors */ }
+
+      return {
+        sessionCode: row.session_code,
+        role: row.tutor_id === req.user.id ? 'tutor' : 'student',
+        merged: row.merged,
+        startedAt: startTime ? new Date(startTime).toISOString() : row.created_at,
+        durationMs,
+      };
+    });
 
     res.json(sessions);
   } catch (err) {

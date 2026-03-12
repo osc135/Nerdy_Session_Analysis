@@ -146,7 +146,7 @@ function PostSessionReport() {
         <div style={styles.header}>
           <div>
             <h1 style={styles.title}>Session Report</h1>
-            <p style={styles.subtitle}>Session {sessionId} — {report.durationMinutes} minutes — {bench.label}</p>
+            <p style={styles.subtitle}>Session {sessionId} — {report.durationFormatted} — {bench.label}</p>
           </div>
           <div style={styles.headerActions}>
             <button style={styles.downloadBtn} onClick={handleDownloadPDF} disabled={exporting}>
@@ -231,8 +231,8 @@ function PostSessionReport() {
             />}
             <MetricCard
               label="Duration"
-              value={report.durationMinutes}
-              unit=" min"
+              value={report.durationFormatted}
+              unit=""
               color="#9ca3af"
             />
           </div>

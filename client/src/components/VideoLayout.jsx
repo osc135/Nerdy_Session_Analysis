@@ -138,40 +138,29 @@ function VideoLayout({
       </div>
 
       {/* ── PiP self-preview overlay ─────────────────────────────────── */}
-      {hasLocalVideo && (
-        <div
-          ref={pipRef}
-          style={{
-            ...styles.pip,
-            right: pipPos.right,
-            bottom: pipPos.bottom,
-          }}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-        >
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted          /* Always muted — prevents audio feedback */
-            playsInline
-            style={styles.pipVideo}
-          />
-          <span style={styles.pipLabel}>{localLabel}</span>
-        </div>
-      )}
-
-      {/* Fallback: if local camera not available, still render the ref so
-          MediaPipe can attach when the stream arrives */}
-      {!hasLocalVideo && (
+      {/* Always render a single <video> element so the ref stays stable
+          for MediaPipe analysis. Hide the wrapper when there's no stream. */}
+      <div
+        ref={pipRef}
+        style={{
+          ...styles.pip,
+          right: pipPos.right,
+          bottom: pipPos.bottom,
+          visibility: hasLocalVideo ? 'visible' : 'hidden',
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
         <video
           ref={localVideoRef}
           autoPlay
-          muted
+          muted          /* Always muted — prevents audio feedback */
           playsInline
-          style={{ display: 'none' }}
+          style={styles.pipVideo}
         />
-      )}
+        <span style={styles.pipLabel}>{localLabel}</span>
+      </div>
     </div>
   );
 }
