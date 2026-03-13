@@ -86,7 +86,9 @@ function VideoLayout({
   const hasRemoteVideo = remoteStream && remoteStream.getVideoTracks().length > 0;
   const hasLocalVideo = localStream && localStream.getVideoTracks().length > 0;
   const isWaiting = connectionState === 'waiting';
+  const isEnded = connectionState === 'ended';
   const isReconnecting = connectionState === 'disconnected' || connectionState === 'failed';
+  const showVideo = hasRemoteVideo && !isWaiting && !isEnded;
 
   return (
     <div style={styles.container}>
@@ -98,8 +100,7 @@ function VideoLayout({
           playsInline
           style={{
             ...styles.remoteVideo,
-            // Hide video element when there's nothing to show
-            opacity: hasRemoteVideo && !isWaiting ? 1 : 0,
+            opacity: showVideo ? 1 : 0,
           }}
         />
 
@@ -111,6 +112,19 @@ function VideoLayout({
           </div>
         )}
 
+        {isEnded && (
+          <div style={styles.statePlaceholder}>
+            <div style={styles.disconnectedIcon}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9E97FF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <line x1="17" y1="11" x2="23" y2="11" />
+              </svg>
+            </div>
+            <span style={styles.placeholderText}>{remoteLabel} disconnected</span>
+          </div>
+        )}
+
         {isReconnecting && !isWaiting && (
           <div style={styles.statePlaceholder}>
             <div style={styles.spinner} />
@@ -118,7 +132,7 @@ function VideoLayout({
           </div>
         )}
 
-        {!isWaiting && !isReconnecting && !hasRemoteVideo && connectionState === 'connected' && (
+        {!isWaiting && !isEnded && !isReconnecting && !hasRemoteVideo && connectionState === 'connected' && (
           <div style={styles.statePlaceholder}>
             <div style={styles.cameraOffIcon}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.5">
@@ -187,8 +201,8 @@ const styles = {
     position: 'relative',
     flex: 1,
     minHeight: 0,
-    background: '#0f1117',
-    borderRadius: '10px',
+    background: '#0F0928',
+    borderRadius: '16px',
     overflow: 'hidden',
   },
 
@@ -230,13 +244,13 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '16px',
-    background: '#13161b',
+    background: '#0F0928',
   },
   placeholderPulse: {
     width: '48px',
     height: '48px',
     borderRadius: '50%',
-    background: '#252a33',
+    background: 'rgba(23,226,234,0.15)',
     animation: 'vl-pulse 2s ease-in-out infinite',
   },
   placeholderText: {
@@ -247,13 +261,22 @@ const styles = {
   spinner: {
     width: '28px',
     height: '28px',
-    border: '2.5px solid #252a33',
-    borderTopColor: '#6b7280',
+    border: '2.5px solid rgba(255,255,255,0.06)',
+    borderTopColor: '#17E2EA',
     borderRadius: '50%',
     animation: 'vl-spin 0.8s linear infinite',
   },
   cameraOffIcon: {
     opacity: 0.5,
+  },
+  disconnectedIcon: {
+    width: '64px',
+    height: '64px',
+    borderRadius: '50%',
+    background: 'rgba(158,151,255,0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // ── PiP (self-preview) ────────────────────────────────────────────

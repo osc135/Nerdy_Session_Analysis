@@ -36,7 +36,7 @@ function GazeIndicator({ label, value, activeColor }) {
     <div style={styles.gazeRow}>
       <div style={{
         ...styles.gazeDot,
-        background: isNA ? '#1e232d' : looking ? activeColor : '#252a33',
+        background: isNA ? 'rgba(255,255,255,0.06)' : looking ? activeColor : 'rgba(255,255,255,0.08)',
         boxShadow: looking ? `0 0 8px ${activeColor}66` : 'none',
       }} />
       <span style={styles.metricLabel}>{label}</span>
@@ -56,7 +56,7 @@ function MutualAttentionIndicator({ active }) {
     <div style={styles.gazeRow}>
       <div style={{
         ...styles.gazeDot,
-        background: isNA ? '#1e232d' : active ? '#6ee7a0' : '#252a33',
+        background: isNA ? 'rgba(255,255,255,0.06)' : active ? '#6ee7a0' : 'rgba(255,255,255,0.08)',
         boxShadow: !isNA && active ? '0 0 8px #6ee7a066' : 'none',
       }} />
       <span style={styles.metricLabel}>Mutual Attention</span>
@@ -77,7 +77,7 @@ function AttentionDriftIndicator({ drift }) {
     <div style={styles.gazeRow}>
       <div style={{
         ...styles.gazeDot,
-        background: isNA ? '#1e232d' : drifting ? '#d4a04a' : '#252a33',
+        background: isNA ? 'rgba(255,255,255,0.06)' : drifting ? '#d4a04a' : 'rgba(255,255,255,0.08)',
         boxShadow: drifting ? '0 0 8px #d4a04a66' : 'none',
       }} />
       <span style={styles.metricLabel}>Attention Drift</span>
@@ -262,18 +262,19 @@ function MetricsSidebar({ metrics }) {
 const styles = {
   sidebar: {
     width: '280px',
-    background: '#181c24',
-    borderLeft: '1px solid #252a33',
+    background: 'rgba(22,28,44,0.85)',
+    borderLeft: '1px solid rgba(255,255,255,0.06)',
     padding: '1.25rem',
     overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
+    backdropFilter: 'blur(20px)',
   },
   tabBar: {
     display: 'flex',
     gap: 0,
-    borderBottom: '1px solid #252a33',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
     marginBottom: '0.25rem',
   },
   tab: (active) => ({
@@ -281,12 +282,13 @@ const styles = {
     padding: '8px 0',
     background: 'none',
     border: 'none',
-    borderBottom: active ? '2px solid #22d3ee' : '2px solid transparent',
+    borderBottom: active ? '2px solid #17E2EA' : '2px solid transparent',
     color: active ? '#e0e4ea' : '#6b7280',
     fontSize: '0.82rem',
     fontWeight: active ? 600 : 400,
     cursor: 'pointer',
     transition: 'all 0.15s',
+    fontFamily: 'inherit',
   }),
   section: {
     display: 'flex',
@@ -321,7 +323,7 @@ const styles = {
   },
   barTrack: {
     height: '5px',
-    background: '#1e232d',
+    background: 'rgba(255,255,255,0.06)',
     borderRadius: '3px',
     overflow: 'hidden',
   },
@@ -362,20 +364,21 @@ const logStyles = {
     flexWrap: 'wrap',
     gap: '4px',
     paddingBottom: '8px',
-    borderBottom: '1px solid #252a33',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
     marginBottom: '8px',
     alignItems: 'center',
   },
   chip: (active) => ({
     padding: '2px 7px',
     borderRadius: '4px',
-    border: active ? '1px solid #22d3ee55' : '1px solid transparent',
-    background: active ? '#22d3ee15' : 'transparent',
-    color: active ? '#22d3ee' : '#64748b',
+    border: active ? '1px solid #17E2EA55' : '1px solid transparent',
+    background: active ? '#17E2EA15' : 'transparent',
+    color: active ? '#17E2EA' : '#64748b',
     fontSize: '0.65rem',
     fontWeight: active ? 600 : 400,
     cursor: 'pointer',
     transition: 'all 0.15s',
+    fontFamily: 'inherit',
   }),
   clearBtn: {
     padding: '2px 7px',

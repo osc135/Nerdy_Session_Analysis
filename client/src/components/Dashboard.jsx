@@ -63,13 +63,16 @@ function Dashboard() {
       </div>
 
       <div style={styles.content}>
-        <div style={styles.welcomeCard}>
+        <div style={{
+          ...styles.welcomeCard,
+          borderTop: `2px solid ${user.role === 'tutor' ? '#17E2EA' : '#9E97FF'}`,
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
             <span style={{
               fontSize: '0.68rem', fontWeight: 600, textTransform: 'uppercase',
-              padding: '3px 10px', borderRadius: '10px', letterSpacing: '0.03em',
-              background: user.role === 'tutor' ? '#2d7a4a22' : '#2b5ea622',
-              color: user.role === 'tutor' ? '#6ee7a0' : '#7ab8e0',
+              padding: '4px 12px', borderRadius: '60px', letterSpacing: '0.03em',
+              background: user.role === 'tutor' ? 'rgba(23,226,234,0.12)' : 'rgba(158,151,255,0.12)',
+              color: user.role === 'tutor' ? '#17E2EA' : '#9E97FF',
             }}>{user.role}</span>
           </div>
           <h2 style={styles.welcomeTitle}>Welcome, {user.name.split(' ')[0]}</h2>
@@ -79,7 +82,12 @@ function Dashboard() {
               : 'Join your tutor\'s session or review your past sessions below.'}
           </p>
           <button
-            style={{ ...styles.startBtn, background: user.role === 'tutor' ? '#2d7a4a' : '#2b5ea6' }}
+            style={{
+              ...styles.startBtn,
+              background: user.role === 'tutor' ? '#17E2EA' : '#9E97FF',
+              color: '#0F0928',
+              boxShadow: `0 4px 24px ${user.role === 'tutor' ? '#17E2EA40' : '#9E97FF40'}`,
+            }}
             onClick={() => navigate('/session')}
           >
             {user.role === 'tutor' ? 'Start New Session' : 'Join a Session'}
@@ -169,14 +177,15 @@ const styles = {
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
+    background: '#0F0928',
   },
   topBar: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '1rem 2rem',
-    borderBottom: '1px solid #252a33',
-    background: '#181c24',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    background: '#161c2c',
   },
   title: {
     fontSize: '1.1rem',
@@ -194,14 +203,15 @@ const styles = {
     color: '#9ca3af',
   },
   logoutBtn: {
-    background: '#1e232d',
-    color: '#9ca3af',
-    border: '1px solid #252a33',
-    borderRadius: '6px',
-    padding: '0.4rem 0.75rem',
+    background: 'rgba(255,255,255,0.05)',
+    color: 'rgba(255,255,255,0.5)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '60px',
+    padding: '0.4rem 0.85rem',
     fontSize: '0.8rem',
     cursor: 'pointer',
     transition: 'background 0.15s',
+    fontFamily: 'inherit',
   },
   content: {
     flex: 1,
@@ -211,11 +221,12 @@ const styles = {
     width: '100%',
   },
   welcomeCard: {
-    background: '#181c24',
-    borderRadius: '14px',
+    background: 'rgba(22,28,44,0.7)',
+    borderRadius: '20px',
     padding: '2rem',
-    border: '1px solid #252a33',
+    border: '1px solid rgba(255,255,255,0.06)',
     marginBottom: '1.5rem',
+    backdropFilter: 'blur(20px)',
   },
   welcomeTitle: {
     fontSize: '1.3rem',
@@ -230,21 +241,21 @@ const styles = {
   },
   startBtn: {
     padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
+    borderRadius: '60px',
     border: 'none',
-    background: '#2d7a4a',
-    color: 'white',
     fontSize: '0.95rem',
     fontWeight: 600,
     cursor: 'pointer',
-    transition: 'background 0.15s',
+    transition: 'transform 0.2s, box-shadow 0.2s',
+    fontFamily: 'inherit',
   },
   trendsSection: {
-    background: '#181c24',
-    borderRadius: '14px',
+    background: 'rgba(22,28,44,0.7)',
+    borderRadius: '20px',
     padding: '1.5rem',
-    border: '1px solid #252a33',
+    border: '1px solid rgba(255,255,255,0.06)',
     marginBottom: '1.5rem',
+    backdropFilter: 'blur(20px)',
   },
   trendsHeader: {
     display: 'flex',
@@ -270,7 +281,7 @@ const styles = {
     gap: '0.5rem',
     marginTop: '1rem',
     paddingTop: '0.75rem',
-    borderTop: '1px solid #252a33',
+    borderTop: '1px solid rgba(255,255,255,0.06)',
   },
   interruptionLabel: {
     fontSize: '0.78rem',
@@ -288,14 +299,15 @@ const styles = {
   },
   statCard: {
     flex: 1,
-    background: '#181c24',
-    borderRadius: '14px',
+    background: 'rgba(22,28,44,0.7)',
+    borderRadius: '20px',
     padding: '1.25rem',
-    border: '1px solid #252a33',
+    border: '1px solid rgba(255,255,255,0.06)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: '0.25rem',
+    backdropFilter: 'blur(20px)',
   },
   statValue: {
     fontSize: '1.7rem',
@@ -308,10 +320,11 @@ const styles = {
     color: '#6b7280',
   },
   section: {
-    background: '#181c24',
-    borderRadius: '14px',
+    background: 'rgba(22,28,44,0.7)',
+    borderRadius: '20px',
     padding: '1.5rem',
-    border: '1px solid #252a33',
+    border: '1px solid rgba(255,255,255,0.06)',
+    backdropFilter: 'blur(20px)',
   },
   sectionTitle: {
     fontSize: '1rem',
@@ -333,11 +346,11 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '0.75rem 1rem',
-    background: '#13161b',
-    borderRadius: '8px',
-    border: '1px solid #252a33',
+    background: 'rgba(255,255,255,0.03)',
+    borderRadius: '12px',
+    border: '1px solid rgba(255,255,255,0.06)',
     cursor: 'pointer',
-    transition: 'border-color 0.15s, background 0.15s',
+    transition: 'border-color 0.2s, background 0.2s',
   },
   sessionInfo: {
     display: 'flex',
@@ -353,10 +366,10 @@ const styles = {
     fontSize: '0.68rem',
     fontWeight: 600,
     textTransform: 'uppercase',
-    padding: '2px 8px',
-    borderRadius: '10px',
-    background: role === 'tutor' ? '#2d7a4a22' : '#2b5ea622',
-    color: role === 'tutor' ? '#6ee7a0' : '#7ab8e0',
+    padding: '2px 10px',
+    borderRadius: '60px',
+    background: role === 'tutor' ? 'rgba(23,226,234,0.12)' : 'rgba(158,151,255,0.12)',
+    color: role === 'tutor' ? '#17E2EA' : '#9E97FF',
     letterSpacing: '0.03em',
   }),
   sessionMeta: {

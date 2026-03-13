@@ -74,12 +74,13 @@ const styles = {
     maxWidth: '340px',
   },
   toast: {
-    background: '#1c2129',
-    border: '1px solid #3d3520',
-    borderRadius: '10px',
+    background: 'rgba(22,28,44,0.9)',
+    border: '1px solid rgba(212,160,74,0.2)',
+    borderRadius: '16px',
     padding: '0.85rem 1rem',
     transition: 'transform 0.3s ease, opacity 0.3s ease',
-    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+    boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+    backdropFilter: 'blur(20px)',
   },
   toastHeader: {
     display: 'flex',

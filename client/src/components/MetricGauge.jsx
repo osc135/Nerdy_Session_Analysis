@@ -1,7 +1,7 @@
 import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 
 function getColor(value) {
-  if (value === null || value === undefined) return '#2a2f3a';
+  if (value === null || value === undefined) return 'rgba(255,255,255,0.08)';
   if (value < 40) return '#e06060';
   if (value < 70) return '#e8b45a';
   return '#6ee7a0';
@@ -31,8 +31,8 @@ function MetricGauge({ label, value, accentColor }) {
           <RadialBar
             dataKey="value"
             cornerRadius={4}
-            fill={isNA ? '#2a2f3a' : fillColor}
-            background={{ fill: '#1e232d' }}
+            fill={isNA ? 'rgba(255,255,255,0.08)' : fillColor}
+            background={{ fill: 'rgba(255,255,255,0.06)' }}
             angleAxisId={0}
             isAnimationActive={false}
           />

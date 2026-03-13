@@ -274,7 +274,7 @@ function PostSessionReport() {
               {keyMoments.map((moment, i) => (
                 <div key={i} style={{
                   ...styles.momentRow,
-                  borderBottom: i < keyMoments.length - 1 ? '1px solid #1e232d' : 'none',
+                  borderBottom: i < keyMoments.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
                 }}>
                   <span style={styles.momentTime}>{formatMs(moment.elapsed)}</span>
                   <span style={{
@@ -298,7 +298,7 @@ function PostSessionReport() {
               {nudgeLog.map((nudge, i) => (
                 <div key={i} style={{
                   ...styles.nudgeRow,
-                  borderBottom: i < nudgeLog.length - 1 ? '1px solid #1e232d' : 'none',
+                  borderBottom: i < nudgeLog.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
                 }}>
                   <span style={styles.nudgeTime}>{nudge.timestamp}</span>
                   <span style={styles.nudgeType}>{nudge.type.replace(/_/g, ' ')}</span>
@@ -317,7 +317,7 @@ function PostSessionReport() {
               {recommendations.map((rec, i) => (
                 <div key={i} style={{
                   ...styles.recRow,
-                  borderBottom: i < recommendations.length - 1 ? '1px solid #1e232d' : 'none',
+                  borderBottom: i < recommendations.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
                 }}>
                   <span style={{
                     ...styles.recPriority,
@@ -390,7 +390,7 @@ function TalkTimeDonut({ tutor, student, benchMin, benchMax }) {
       <div style={{ position: 'relative', width: size, height: size }}>
         <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
           {/* Background track */}
-          <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#1e232d" strokeWidth={stroke} />
+          <circle cx={cx} cy={cy} r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
           {/* Tutor arc */}
           {tutor > 0 && (
             <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#e8985a" strokeWidth={stroke}
@@ -487,26 +487,29 @@ const styles = {
     alignItems: 'center',
   },
   downloadBtn: {
-    background: '#2d7a4a',
-    color: 'white',
+    background: '#17E2EA',
+    color: '#0F0928',
     border: 'none',
-    borderRadius: '6px',
-    padding: '0.5rem 1rem',
+    borderRadius: '60px',
+    padding: '0.5rem 1.25rem',
     fontSize: '0.82rem',
     fontWeight: 600,
     cursor: 'pointer',
     transition: 'opacity 0.15s',
+    fontFamily: 'inherit',
+    boxShadow: '0 4px 16px #17E2EA33',
   },
   homeBtn: {
-    background: '#1e232d',
+    background: 'rgba(255,255,255,0.05)',
     color: '#9ca3af',
-    border: '1px solid #252a33',
-    borderRadius: '6px',
-    padding: '0.5rem 1rem',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '60px',
+    padding: '0.5rem 1.25rem',
     fontSize: '0.82rem',
     fontWeight: 600,
     cursor: 'pointer',
     transition: 'background 0.15s',
+    fontFamily: 'inherit',
   },
   loadingBox: {
     textAlign: 'center',
@@ -522,14 +525,15 @@ const styles = {
     marginTop: '0.5rem',
   },
   heroCard: {
-    background: '#181c24',
-    border: '1px solid #252a33',
-    borderRadius: '14px',
+    background: 'rgba(22,28,44,0.7)',
+    border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: '20px',
     padding: '1.75rem',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: '0.5rem',
+    backdropFilter: 'blur(20px)',
   },
   heroLabel: {
     fontSize: '0.7rem',
@@ -570,10 +574,11 @@ const styles = {
     gap: '0.75rem',
   },
   card: {
-    background: '#181c24',
-    border: '1px solid #252a33',
-    borderRadius: '10px',
+    background: 'rgba(22,28,44,0.7)',
+    border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: '16px',
     padding: '1rem',
+    backdropFilter: 'blur(20px)',
   },
   metricCard: {
     display: 'flex',
@@ -630,7 +635,7 @@ const styles = {
   balanceTrack: {
     display: 'flex',
     height: '8px',
-    background: '#1e232d',
+    background: 'rgba(255,255,255,0.06)',
     borderRadius: '4px',
     overflow: 'hidden',
   },

@@ -94,8 +94,8 @@ function ConsentScreen() {
                     key={t.value}
                     style={{
                       ...styles.typeOption,
-                      borderColor: sessionType === t.value ? '#2d7a4a' : '#252a33',
-                      background: sessionType === t.value ? '#2d7a4a18' : 'transparent',
+                      borderColor: sessionType === t.value ? '#17E2EA44' : 'rgba(255,255,255,0.06)',
+                      background: sessionType === t.value ? 'rgba(23,226,234,0.06)' : 'transparent',
                     }}
                   >
                     <input
@@ -121,8 +121,8 @@ function ConsentScreen() {
                     key={s.value}
                     style={{
                       ...styles.sensitivityOption,
-                      borderColor: sensitivity === s.value ? '#2d7a4a' : '#252a33',
-                      background: sensitivity === s.value ? '#2d7a4a18' : 'transparent',
+                      borderColor: sensitivity === s.value ? '#17E2EA44' : 'rgba(255,255,255,0.06)',
+                      background: sensitivity === s.value ? 'rgba(23,226,234,0.06)' : 'transparent',
                     }}
                   >
                     <input
@@ -183,40 +183,44 @@ const styles = {
     alignItems: 'center',
     minHeight: '100vh',
     padding: '2rem',
+    position: 'relative',
   },
   card: {
-    background: '#181c24',
-    borderRadius: '14px',
-    padding: '3rem',
+    background: 'rgba(22,28,44,0.8)',
+    borderRadius: '20px',
+    padding: '2.5rem',
     maxWidth: '640px',
     width: '100%',
-    border: '1px solid #252a33',
+    border: '1px solid rgba(255,255,255,0.06)',
+    backdropFilter: 'blur(20px)',
+    position: 'relative',
+    zIndex: 1,
   },
   title: {
-    fontSize: '1.6rem',
+    fontSize: '1.5rem',
     fontWeight: 700,
     marginBottom: '0.5rem',
-    color: '#e0e4ea',
+    color: '#ffffff',
   },
   subtitle: {
-    color: '#6b7280',
+    color: 'rgba(255,255,255,0.4)',
     marginBottom: '2rem',
     fontSize: '0.88rem',
   },
   consentBox: {
-    background: '#13161b',
-    borderRadius: '10px',
+    background: 'rgba(255,255,255,0.03)',
+    borderRadius: '16px',
     padding: '1.5rem',
     marginBottom: '1.5rem',
-    border: '1px solid #252a33',
+    border: '1px solid rgba(255,255,255,0.06)',
   },
   sectionTitle: {
     fontSize: '1.05rem',
     marginBottom: '0.75rem',
-    color: '#e0e4ea',
+    color: '#ffffff',
   },
   introParagraph: {
-    color: '#9ca3af',
+    color: 'rgba(255,255,255,0.5)',
     fontSize: '0.9rem',
     marginBottom: '0.5rem',
   },
@@ -224,7 +228,7 @@ const styles = {
     paddingLeft: '1.25rem',
     lineHeight: '1.8',
     fontSize: '0.88rem',
-    color: '#9ca3af',
+    color: 'rgba(255,255,255,0.5)',
   },
   checkbox: {
     display: 'flex',
@@ -233,7 +237,7 @@ const styles = {
     marginBottom: '1.5rem',
     cursor: 'pointer',
     fontSize: '0.88rem',
-    color: '#9ca3af',
+    color: 'rgba(255,255,255,0.5)',
   },
   sessionTypeBox: {
     marginBottom: '1.5rem',
@@ -241,7 +245,7 @@ const styles = {
   sessionTypeTitle: {
     fontSize: '0.95rem',
     marginBottom: '0.75rem',
-    color: '#e0e4ea',
+    color: '#ffffff',
     fontWeight: 600,
   },
   typeOptions: {
@@ -285,22 +289,25 @@ const styles = {
     textAlign: 'center',
   },
   button: {
-    padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
+    padding: '0.8rem 1.5rem',
+    borderRadius: '60px',
     border: 'none',
     fontSize: '0.95rem',
     fontWeight: 600,
     cursor: 'pointer',
-    transition: 'opacity 0.2s',
+    transition: 'opacity 0.2s, transform 0.15s, box-shadow 0.2s',
     width: '100%',
+    fontFamily: 'inherit',
   },
   tutorButton: {
-    background: '#2d7a4a',
-    color: 'white',
+    background: '#17E2EA',
+    boxShadow: '0 4px 24px #17E2EA40',
+    color: '#0F0928',
   },
   studentButton: {
-    background: '#2b5ea6',
-    color: 'white',
+    background: '#9E97FF',
+    boxShadow: '0 4px 24px #9E97FF40',
+    color: '#0F0928',
     width: 'auto',
   },
   studentSection: {
@@ -318,13 +325,14 @@ const styles = {
   codeInput: {
     flex: 1,
     padding: '0.75rem 1rem',
-    borderRadius: '8px',
-    border: '1px solid #252a33',
-    background: '#13161b',
-    color: '#d1d5db',
+    borderRadius: '12px',
+    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#e2e8f0',
     fontSize: '0.95rem',
     outline: 'none',
-    transition: 'border-color 0.15s',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+    fontFamily: 'inherit',
   },
 };
 
