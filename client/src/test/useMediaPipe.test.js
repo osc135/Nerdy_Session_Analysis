@@ -9,7 +9,7 @@ import {
   calculateGazeScore,
   trimBuffer,
   LANDMARKS,
-} from './useMediaPipe';
+} from '../hooks/useMediaPipe';
 
 // --- Helper: build a sparse landmarks array with only the indices we need ---
 // MediaPipe gives 478 landmarks. We only use ~14 of them.

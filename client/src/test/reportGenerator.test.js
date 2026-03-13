@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateReport } from './reportGenerator';
+import { generateReport } from '../utils/reportGenerator';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
