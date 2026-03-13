@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('Audio');
 
 const SILENCE_THRESHOLD = 0.008;
 const CHECK_INTERVAL = 100; // ms
@@ -31,6 +34,8 @@ export function useAudioAnalysis(stream) {
     analyser.fftSize = 2048; // larger FFT for better pitch resolution
     source.connect(analyser);
     analyserRef.current = analyser;
+    log.info('Audio context initialized, sample rate=' + audioContext.sampleRate);
+    let audioLogCounter = 0;
 
     const timeData = new Float32Array(analyser.fftSize);
     const freqData = new Float32Array(analyser.frequencyBinCount);
@@ -110,7 +115,14 @@ export function useAudioAnalysis(stream) {
         const pitchVariation = Math.min(pitchStd / 50, 1);
 
         // Vocal tone: pitch variation is the primary signal for vocal engagement
-        setVocalTone((pitchVariation * 0.6 + volumeVariation * 0.4));
+        const tone = pitchVariation * 0.6 + volumeVariation * 0.4;
+        setVocalTone(tone);
+
+        // Log every ~2s (every 20 ticks at 100ms)
+        audioLogCounter++;
+        if (audioLogCounter % 20 === 0) {
+          log.info(`VAD: speaking=${speaking} | RMS=${rms.toFixed(4)} | energy=${tone.toFixed(2)} | talkTime=${Math.round((speakingMsRef.current / totalMsRef.current) * 100)}%`);
+        }
       } else if (!speaking) {
         // Decay toward 0 when silent
         setVocalTone(prev => Math.max(prev - 0.02, 0));

@@ -56,7 +56,7 @@ function TutorView() {
   const remoteVideoRef = useRef(null);
 
   // Eye contact tracking + facial expressiveness via MediaPipe
-  const { gazeScore, facialEnergy, isReady: mediaPipeReady, gazeDebug } = useMediaPipe(localVideoRef, sessionId);
+  const { gazeScore, facialEnergy, isReady: mediaPipeReady } = useMediaPipe(localVideoRef, sessionId);
 
   // Audio analysis for local mic (vocal tone)
   const { isSpeaking, talkTimePercent, volume, vocalTone, getCumulativeMs } = useAudioAnalysis(localStream);
@@ -243,14 +243,6 @@ function TutorView() {
       {/* Nudge toasts */}
       <NudgePanel nudges={nudges} />
 
-      {/* Gaze debug overlay — remove after tuning */}
-      {gazeDebug && (
-        <div style={styles.debugOverlay}>
-          <div>contact: {gazeDebug.contact} | conf: {gazeDebug.confidence}</div>
-          <div>yaw: {gazeDebug.yaw}° pitch: {gazeDebug.pitch}°</div>
-          <div>iris devX: {gazeDebug.irisX} devY: {gazeDebug.irisY}</div>
-        </div>
-      )}
     </div>
   );
 }
@@ -354,19 +346,6 @@ const styles = {
     borderRadius: '5px',
     fontSize: '0.85rem',
     color: '#7ab8e0',
-  },
-  debugOverlay: {
-    position: 'fixed',
-    bottom: '10px',
-    left: '10px',
-    background: 'rgba(0,0,0,0.85)',
-    color: '#0f0',
-    fontFamily: 'monospace',
-    fontSize: '11px',
-    padding: '8px 12px',
-    borderRadius: '6px',
-    lineHeight: 1.6,
-    zIndex: 9999,
   },
 };
 

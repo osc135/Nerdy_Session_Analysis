@@ -7,6 +7,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('MediaPipe');
 
 // Landmark indices (still needed for head pose)
 export const LANDMARKS = {
@@ -320,6 +323,7 @@ export function useMediaPipe(videoRef, sessionId = null) {
   const faceLandmarkerRef = useRef(null);
   const animFrameRef = useRef(null);
   const lastProcessTimeRef = useRef(0);
+  const logCounterRef = useRef(0);
 
   // EMA-smoothed confidence for stability
   const smoothedConfRef = useRef(null);
@@ -392,7 +396,14 @@ export function useMediaPipe(videoRef, sessionId = null) {
       frameBufferRef.current = trimBuffer(frameBufferRef.current, ROLLING_WINDOW_MS);
 
       const recentFrames = trimBuffer(frameBufferRef.current, LIVE_WINDOW_MS, now);
-      setGazeScore(calculateGazeScore(recentFrames));
+      const score = calculateGazeScore(recentFrames);
+      setGazeScore(score);
+
+      // Log every ~2 seconds (every 30 frames at 15fps)
+      logCounterRef.current++;
+      if (logCounterRef.current % 30 === 0) {
+        log.info(`Gaze: ${score}% | head yaw=${frameData.headPose.yaw.toFixed(1)}° pitch=${frameData.headPose.pitch.toFixed(1)}° | expression=${(frameData.facialExpressiveness ?? 0).toFixed(2)} | contact=${frameData.eyeContact ? 'Y' : 'N'}`);
+      }
     } catch (err) {
       // skip bad frames
     }
@@ -428,15 +439,19 @@ export function useMediaPipe(videoRef, sessionId = null) {
         if (cancelled) return;
         faceLandmarkerRef.current = landmarker;
         setIsReady(true);
+        log.info('Initialized (GPU delegate)');
       } catch (err) {
         console.error('MediaPipe GPU init failed:', err);
+        log.warn('GPU init failed, trying CPU fallback');
         try {
           const landmarker = await createLandmarker('CPU');
           if (cancelled) return;
           faceLandmarkerRef.current = landmarker;
           setIsReady(true);
+          log.info('Initialized (CPU fallback)');
         } catch (cpuErr) {
           console.error('MediaPipe CPU fallback also failed:', cpuErr);
+          log.error('All init attempts failed', cpuErr);
         }
       }
     }

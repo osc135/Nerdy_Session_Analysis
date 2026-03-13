@@ -1,3 +1,17 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { subscribe, getLogBuffer, clearLogBuffer, isDebugOn, CATEGORIES } from '../utils/logger';
+
+// Enable debug logging automatically when Logs tab is viewed
+function enableDebug() {
+  try { localStorage.setItem('debug', 'true'); } catch {}
+}
+
+function disableDebug() {
+  try { localStorage.setItem('debug', 'false'); } catch {}
+}
+
+// --- Metric display components ---
+
 function MetricBar({ label, value, color }) {
   const isNA = value === null || value === undefined;
   return (
@@ -17,7 +31,6 @@ function MetricBar({ label, value, color }) {
 
 function GazeIndicator({ label, value, activeColor }) {
   const isNA = value === null || value === undefined;
-  // value is 0-100 gaze score; treat >= 50 as "looking"
   const looking = !isNA && value >= 50;
   return (
     <div style={styles.gazeRow}>
@@ -78,7 +91,117 @@ function AttentionDriftIndicator({ drift }) {
   );
 }
 
+// --- Log feed component ---
+
+const LEVEL_COLORS = { info: '#cbd5e1', warn: '#fbbf24', error: '#f87171' };
+
+function LogFeed() {
+  const [logs, setLogs] = useState([]);
+  const [filter, setFilter] = useState(null);
+  const bottomRef = useRef(null);
+  const containerRef = useRef(null);
+  const autoScrollRef = useRef(true);
+
+  useEffect(() => {
+    enableDebug();
+    setLogs([...getLogBuffer()]);
+
+    const unsub = subscribe((entry) => {
+      setLogs(prev => {
+        const next = [...prev, entry];
+        return next.length > 500 ? next.slice(-500) : next;
+      });
+    });
+
+    return () => {
+      unsub();
+      disableDebug();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (autoScrollRef.current && bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs]);
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  }, []);
+
+  const filtered = filter ? logs.filter(l => l.category === filter) : logs;
+  const categories = Object.keys(CATEGORIES);
+
+  return (
+    <div style={logStyles.wrapper}>
+      {/* Filter chips */}
+      <div style={logStyles.filters}>
+        <button
+          style={logStyles.chip(filter === null)}
+          onClick={() => setFilter(null)}
+        >
+          All
+        </button>
+        {categories.map(cat => (
+          <button
+            key={cat}
+            style={{
+              ...logStyles.chip(filter === cat),
+              color: filter === cat ? CATEGORIES[cat].color : '#64748b',
+              borderColor: filter === cat ? CATEGORIES[cat].color + '55' : 'transparent',
+            }}
+            onClick={() => setFilter(prev => prev === cat ? null : cat)}
+          >
+            {cat}
+          </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        <button
+          style={logStyles.clearBtn}
+          onClick={() => { clearLogBuffer(); setLogs([]); }}
+        >
+          Clear
+        </button>
+      </div>
+
+      {/* Log entries */}
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        style={logStyles.entries}
+      >
+        {filtered.length === 0 && (
+          <div style={logStyles.empty}>Waiting for logs...</div>
+        )}
+        {filtered.map((entry, i) => (
+          <div
+            key={i}
+            style={{
+              ...logStyles.entry,
+              borderLeftColor: entry.color,
+              background: entry.level === 'warn' ? '#fbbf2408' : entry.level === 'error' ? '#f8717108' : 'transparent',
+            }}
+          >
+            <span style={logStyles.time}>{entry.timestamp}</span>
+            {' '}
+            <span style={{ color: entry.color, fontWeight: 600 }}>[{entry.category}]</span>
+            {' '}
+            <span style={{ color: LEVEL_COLORS[entry.level] }}>{entry.message}</span>
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+    </div>
+  );
+}
+
+// --- Main sidebar ---
+
 function MetricsSidebar({ metrics }) {
+  const [tab, setTab] = useState('metrics');
+
   const {
     tutorEyeContact = 0, tutorTalkTime = 0, tutorEnergy = 0,
     studentEyeContact, studentTalkTime, studentEnergy,
@@ -87,32 +210,54 @@ function MetricsSidebar({ metrics }) {
 
   return (
     <div style={styles.sidebar}>
-      <h3 style={styles.title}>Live Metrics</h3>
-
-      <div style={styles.section}>
-        <span style={styles.sectionLabel}>You (Tutor)</span>
-        <GazeIndicator label="Eye Contact" value={tutorEyeContact} activeColor="#e8985a" />
-        <MetricBar label="Talk Time" value={tutorTalkTime} color="#e8985a" />
-        <MetricBar label="Energy" value={tutorEnergy} color="#c4a5e0" />
+      {/* Tab header */}
+      <div style={styles.tabBar}>
+        <button
+          style={styles.tab(tab === 'metrics')}
+          onClick={() => setTab('metrics')}
+        >
+          Live Metrics
+        </button>
+        <button
+          style={styles.tab(tab === 'logs')}
+          onClick={() => setTab('logs')}
+        >
+          Logs
+        </button>
       </div>
 
-      <div style={styles.section}>
-        <span style={styles.sectionLabel}>
-          Student{!hasStudent ? ' (not connected)' : ''}
-        </span>
-        <GazeIndicator label="Eye Contact" value={studentEyeContact} activeColor="#6ee7a0" />
-        <MetricBar label="Talk Time" value={studentTalkTime} color="#7ab8e0" />
-        <MetricBar label="Energy" value={studentEnergy} color="#a78bde" />
-      </div>
+      {tab === 'metrics' ? (
+        <>
+          <div style={styles.section}>
+            <span style={styles.sectionLabel}>You (Tutor)</span>
+            <GazeIndicator label="Eye Contact" value={tutorEyeContact} activeColor="#e8985a" />
+            <MetricBar label="Talk Time" value={tutorTalkTime} color="#e8985a" />
+            <MetricBar label="Energy" value={tutorEnergy} color="#c4a5e0" />
+          </div>
 
-      <div style={styles.section}>
-        <span style={styles.sectionLabel}>Session</span>
-        <MutualAttentionIndicator active={mutualAttention} />
-        <AttentionDriftIndicator drift={attentionDrift} />
-      </div>
+          <div style={styles.section}>
+            <span style={styles.sectionLabel}>
+              Student{!hasStudent ? ' (not connected)' : ''}
+            </span>
+            <GazeIndicator label="Eye Contact" value={studentEyeContact} activeColor="#6ee7a0" />
+            <MetricBar label="Talk Time" value={studentTalkTime} color="#7ab8e0" />
+            <MetricBar label="Energy" value={studentEnergy} color="#a78bde" />
+          </div>
+
+          <div style={styles.section}>
+            <span style={styles.sectionLabel}>Session</span>
+            <MutualAttentionIndicator active={mutualAttention} />
+            <AttentionDriftIndicator drift={attentionDrift} />
+          </div>
+        </>
+      ) : (
+        <LogFeed />
+      )}
     </div>
   );
 }
+
+// --- Styles ---
 
 const styles = {
   sidebar: {
@@ -125,13 +270,24 @@ const styles = {
     flexDirection: 'column',
     gap: '1.5rem',
   },
-  title: {
-    fontSize: '0.95rem',
-    fontWeight: 600,
-    margin: 0,
-    color: '#e0e4ea',
-    letterSpacing: '0.01em',
+  tabBar: {
+    display: 'flex',
+    gap: 0,
+    borderBottom: '1px solid #252a33',
+    marginBottom: '0.25rem',
   },
+  tab: (active) => ({
+    flex: 1,
+    padding: '8px 0',
+    background: 'none',
+    border: 'none',
+    borderBottom: active ? '2px solid #22d3ee' : '2px solid transparent',
+    color: active ? '#e0e4ea' : '#6b7280',
+    fontSize: '0.82rem',
+    fontWeight: active ? 600 : 400,
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  }),
   section: {
     display: 'flex',
     flexDirection: 'column',
@@ -191,6 +347,65 @@ const styles = {
     fontSize: '0.82rem',
     fontWeight: 600,
     marginLeft: 'auto',
+  },
+};
+
+const logStyles = {
+  wrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+    minHeight: 0,
+  },
+  filters: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '4px',
+    paddingBottom: '8px',
+    borderBottom: '1px solid #252a33',
+    marginBottom: '8px',
+    alignItems: 'center',
+  },
+  chip: (active) => ({
+    padding: '2px 7px',
+    borderRadius: '4px',
+    border: active ? '1px solid #22d3ee55' : '1px solid transparent',
+    background: active ? '#22d3ee15' : 'transparent',
+    color: active ? '#22d3ee' : '#64748b',
+    fontSize: '0.65rem',
+    fontWeight: active ? 600 : 400,
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  }),
+  clearBtn: {
+    padding: '2px 7px',
+    borderRadius: '4px',
+    border: 'none',
+    background: 'none',
+    color: '#4b5563',
+    fontSize: '0.65rem',
+    cursor: 'pointer',
+  },
+  entries: {
+    flex: 1,
+    overflowY: 'auto',
+    fontFamily: 'ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace',
+    fontSize: '0.68rem',
+    lineHeight: 1.6,
+  },
+  entry: {
+    padding: '1px 8px',
+    borderLeft: '2px solid',
+    wordBreak: 'break-word',
+  },
+  time: {
+    color: '#4b5563',
+  },
+  empty: {
+    color: '#4b5563',
+    textAlign: 'center',
+    padding: '2rem 0',
+    fontSize: '0.75rem',
   },
 };
 

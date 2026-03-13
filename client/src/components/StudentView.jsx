@@ -24,6 +24,17 @@ function StudentView() {
     setMuted(!muted);
   };
 
+  const handleLeave = () => {
+    const data = historyRef.current.getHistory();
+    disconnect();
+    fetch(`/api/sessions/${sessionId}/student`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    }).catch(err => console.error('Failed to save session data:', err));
+    navigate('/dashboard');
+  };
+
   const [sessionEnded, setSessionEnded] = useState(false);
 
   // When tutor ends the session, save data and show ended screen
@@ -142,6 +153,7 @@ function StudentView() {
         >
           {muted ? 'Unmute' : 'Mute'}
         </button>
+        <button style={styles.leaveBtn} onClick={handleLeave}>Leave</button>
       </div>
 
       {/* Video call layout: tutor full-screen, student PiP */}
@@ -211,6 +223,17 @@ const styles = {
     background: '#3b1a1a',
     color: '#f08080',
     borderColor: '#5c2a2a',
+  },
+  leaveBtn: {
+    background: '#c23b3b',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '0.4rem 1rem',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'background 0.15s',
   },
   endedContainer: {
     display: 'flex',

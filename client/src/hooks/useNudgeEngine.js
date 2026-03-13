@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { THRESHOLDS, NUDGE_COOLDOWN_MS, TALK_TIME_THRESHOLDS } from '../utils/thresholds';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('Nudge');
 
 const CHECK_INTERVAL_MS = 2000;     // check thresholds every 2 seconds
 
@@ -297,11 +300,15 @@ export function useNudgeEngine({ localMetrics, remoteMetrics, connectionState, e
           if (now - lastFired >= cooldownMs) {
             lastFiredRef.current[rule.type] = now;
             const message = rule.getMessage ? rule.getMessage(context) : rule.message;
+            log.warn(`Threshold fired: ${rule.type} → "${message}"`);
             setNudges(prev => [...prev, {
               message,
               timestamp: formatTime(elapsedRef.current),
               type: rule.type,
             }]);
+          } else {
+            const remaining = Math.ceil((cooldownMs - (now - lastFired)) / 1000);
+            log.info(`Threshold met: ${rule.type} — skipped (cooldown ${remaining}s remaining)`);
           }
         }
       }

@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('WebRTC');
 
 const STUN_SERVERS = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -84,6 +87,7 @@ export function useWebRTC(sessionId, role) {
       pc.onconnectionstatechange = () => {
         if (cancelled) return;
         const state = pc.connectionState;
+        log.info(`Connection state: ${state}`);
         if (state === 'connected' || state === 'failed' || state === 'closed' || state === 'disconnected') {
           setConnectionState(state === 'closed' ? 'disconnected' : state);
         }
@@ -93,10 +97,12 @@ export function useWebRTC(sessionId, role) {
       if (role === 'tutor') {
         const dc = pc.createDataChannel('metrics');
         dataChannelRef.current = dc;
+        dc.onopen = () => log.info('Data channel open (tutor created)');
         dc.onmessage = (e) => setRemoteMetrics(JSON.parse(e.data));
       } else {
         pc.ondatachannel = (event) => {
           dataChannelRef.current = event.channel;
+          event.channel.onopen = () => log.info('Data channel open (student received)');
           event.channel.onmessage = (e) => setRemoteMetrics(JSON.parse(e.data));
         };
       }
@@ -107,6 +113,7 @@ export function useWebRTC(sessionId, role) {
 
       ws.onopen = () => {
         if (cancelled) { ws.close(); return; }
+        log.info(`Signaling connected, joining room ${sessionId} as ${role}`);
         ws.send(JSON.stringify({ type: 'join', sessionId, role }));
         setConnectionState('waiting');
       };
@@ -128,11 +135,13 @@ export function useWebRTC(sessionId, role) {
 
         switch (msg.type) {
           case 'peer_joined': {
+            log.info(`Peer joined: ${msg.role}`);
             // Tutor initiates the offer when the student joins
             if (role === 'tutor') {
               const offer = await pc.createOffer();
               await pc.setLocalDescription(offer);
               ws.send(JSON.stringify({ type: 'offer', offer }));
+              log.info('Sent offer');
             }
             break;
           }
@@ -175,6 +184,7 @@ export function useWebRTC(sessionId, role) {
 
           case 'peer_left':
           case 'session_ending': {
+            log.info(`Received: ${msg.type}`);
             setConnectionState('ended');
             break;
           }

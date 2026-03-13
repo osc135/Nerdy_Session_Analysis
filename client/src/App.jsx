@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { toggleDebug } from './utils/logger';
 import LoginPage from './components/LoginPage.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import ConsentScreen from './components/ConsentScreen.jsx';
@@ -19,20 +21,34 @@ function ProtectedRoute({ children, role }) {
 function App() {
   const { user, loading } = useAuth();
 
+  // Ctrl+Shift+D toggles debug logging
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        toggleDebug();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   if (loading) return null;
 
   return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/session" element={<ProtectedRoute><ConsentScreen /></ProtectedRoute>} />
-      <Route path="/calibrate/:role/:sessionId" element={<ProtectedRoute><CalibrationScreen /></ProtectedRoute>} />
-      <Route path="/tutor/:sessionId" element={<ProtectedRoute role="tutor"><TutorView /></ProtectedRoute>} />
-      <Route path="/student/:sessionId" element={<ProtectedRoute role="student"><StudentView /></ProtectedRoute>} />
-      <Route path="/report/:sessionId" element={<ProtectedRoute><PostSessionReport /></ProtectedRoute>} />
-      <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/session" element={<ProtectedRoute><ConsentScreen /></ProtectedRoute>} />
+        <Route path="/calibrate/:role/:sessionId" element={<ProtectedRoute><CalibrationScreen /></ProtectedRoute>} />
+        <Route path="/tutor/:sessionId" element={<ProtectedRoute role="tutor"><TutorView /></ProtectedRoute>} />
+        <Route path="/student/:sessionId" element={<ProtectedRoute role="student"><StudentView /></ProtectedRoute>} />
+        <Route path="/report/:sessionId" element={<ProtectedRoute><PostSessionReport /></ProtectedRoute>} />
+        <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 

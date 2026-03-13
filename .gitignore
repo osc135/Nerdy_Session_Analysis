@@ -5,3 +5,5 @@ server/sessions/*.json
 .DS_Store
 *.md
 !README.md
+!presearch.md
+!docs/*.md

@@ -8,6 +8,11 @@ import { fileURLToPath } from 'url';
 import { initDB } from './db.js';
 import pool from './db.js';
 import authRouter, { requireAuth, optionalAuth } from './auth.js';
+import { createLogger } from './logger.js';
+
+const logWS = createLogger('WS');
+const logAPI = createLogger('API');
+const logSession = createLogger('Session');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -61,6 +66,7 @@ wss.on('connection', (ws) => {
 
           ws.send(JSON.stringify({ type: 'joined', sessionId, role }));
           console.log(`[${sessionId}] ${role} joined`);
+          logWS.info(`${role} joined room ${sessionId}`);
           break;
         }
 
@@ -89,6 +95,7 @@ wss.on('connection', (ws) => {
             }
           }
           console.log(`[${currentRoom}] session ending`);
+          logWS.info(`Session ending broadcast for ${currentRoom}`);
           break;
         }
       }
@@ -113,6 +120,7 @@ wss.on('connection', (ws) => {
         rooms.delete(currentRoom);
       }
       console.log(`[${currentRoom}] ${currentRole} left`);
+      logWS.info(`${currentRole} left room ${currentRoom}`);
     }
   });
 });
@@ -134,14 +142,17 @@ app.post('/api/sessions/:id/tutor', optionalAuth, async (req, res) => {
 
     // Check if both sides are saved
     const [rows] = await pool.query('SELECT * FROM sessions WHERE session_code = ?', [code]);
+    logAPI.info(`POST /api/sessions/${code}/tutor — saved`);
     if (rows[0]?.tutor_metrics && rows[0]?.student_metrics) {
       await pool.query('UPDATE sessions SET merged = TRUE WHERE session_code = ?', [code]);
+      logSession.info(`Session ${code} merged — both sides received`);
       notifyReportReady(code);
     }
 
     res.json({ status: 'ok' });
   } catch (err) {
     console.error('Save tutor metrics error:', err);
+    logAPI.error(`POST /api/sessions/${req.params.id}/tutor failed`, err.message);
     res.status(500).json({ error: 'Failed to save metrics' });
   }
 });
@@ -160,8 +171,10 @@ app.post('/api/sessions/:id/student', optionalAuth, async (req, res) => {
     );
 
     const [rows] = await pool.query('SELECT * FROM sessions WHERE session_code = ?', [code]);
+    logAPI.info(`POST /api/sessions/${code}/student — saved`);
     if (rows[0]?.tutor_metrics && rows[0]?.student_metrics) {
       await pool.query('UPDATE sessions SET merged = TRUE WHERE session_code = ?', [code]);
+      logSession.info(`Session ${code} merged — both sides received`);
       notifyReportReady(code);
     }
 
@@ -338,43 +351,6 @@ function notifyReportReady(sessionCode) {
     }
   }
 }
-
-// --- Claude API proxy for nudge generation ---
-app.post('/api/nudge', async (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
-  }
-
-  try {
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey });
-
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 150,
-      messages: [
-        {
-          role: 'user',
-          content: req.body.prompt,
-        },
-      ],
-      system: `You are a real-time coaching assistant for a live tutoring session. Generate a single, concise coaching nudge for the tutor based on the engagement metrics provided. The nudge should be:
-- One sentence, actionable and specific
-- Suggest a concrete behavior change
-- Empathetic and supportive in tone
-- Never reference the AI system or metrics directly
-
-Respond with ONLY the nudge message, nothing else.`,
-    });
-
-    const nudge = response.content[0].text;
-    res.json({ nudge });
-  } catch (err) {
-    console.error('Claude API error:', err);
-    res.status(500).json({ error: 'Failed to generate nudge' });
-  }
-});
 
 // Catch-all: serve React app for client-side routing
 if (existsSync(clientDist)) {
